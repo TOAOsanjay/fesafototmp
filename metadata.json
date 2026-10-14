@@ -1,0 +1,6 @@
+{
+  "name": "fesafotos. — Het feest dat blijft.",
+  "description": "fesafotos. geeft elk feest een eigen adres: een naam, een thema en een album waar gasten hun foto's achterlaten. Fotografen leveren hun originals direct aan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

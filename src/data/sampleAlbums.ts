@@ -1,0 +1,77 @@
+import { DemoAlbum, PhotoItem } from '../types';
+
+export const initialPhotos: PhotoItem[] = [
+  {
+    id: 'p1',
+    url: '/src/assets/images/hero_party_celebration_1791985660408.jpg',
+    caption: 'Proosten met de hele lange tafel bij het diner aan de gracht!',
+    author: 'Lucas van Dijk',
+    authorType: 'guest',
+    timestamp: '20:42',
+    likes: 38,
+  },
+  {
+    id: 'p2',
+    url: '/src/assets/images/party_guest_moments_grid_1791985661203.jpg',
+    caption: 'Dansvloer ging helemaal los toen het verrassingsnummer begon 🪩',
+    author: 'Emma & Noor',
+    authorType: 'guest',
+    timestamp: '23:15',
+    likes: 54,
+  },
+  {
+    id: 'p3',
+    url: '/src/assets/images/photographer_delivery_workflow_1791985661699.jpg',
+    caption: 'Ceremonie en binnenkomst — Originele Leica 50mm set (Selectie 1)',
+    author: 'Sander Visser Fotografie',
+    authorType: 'photographer',
+    timestamp: '16:30',
+    likes: 67,
+    isOriginalQuality: true,
+  },
+  {
+    id: 'p4',
+    url: '/src/assets/images/qr_table_card_mockup_1791985661307.jpg',
+    caption: 'De tafelopstelling met de fesafotos. kaartjes tussen de kaarsen',
+    author: 'Ceremoniemeester Lisa',
+    authorType: 'guest',
+    timestamp: '18:10',
+    likes: 29,
+  },
+];
+
+export const demoAlbumsList: DemoAlbum[] = [
+  {
+    slug: 'daanensophie',
+    name: 'Daan & Sophie — Zomerbruiloft',
+    date: '18 Juli 2026',
+    location: 'Het Sieraad, Amsterdam',
+    coverImage: '/src/assets/images/hero_party_celebration_1791985660408.jpg',
+    theme: 'Crème Linnen',
+    guestCount: 142,
+    photoCount: 348,
+    photos: initialPhotos,
+  },
+  {
+    slug: 'noa-30-rooftop',
+    name: 'Noa 30th Rooftop Fesa',
+    date: '4 Augustus 2026',
+    location: 'Canvas op de 7e, Amsterdam',
+    coverImage: '/src/assets/images/party_guest_moments_grid_1791985661203.jpg',
+    theme: 'Middernacht Noir',
+    guestCount: 88,
+    photoCount: 214,
+    photos: [initialPhotos[1], initialPhotos[0]],
+  },
+  {
+    slug: 'festival-de-zon-2026',
+    name: 'Festival De Zon — Afterparty & Crew',
+    date: '29 Augustus 2026',
+    location: 'Thuishaven Terrein',
+    coverImage: '/src/assets/images/hero_party_celebration_1791985660408.jpg',
+    theme: 'Olijf Botanisch',
+    guestCount: 420,
+    photoCount: 960,
+    photos: initialPhotos,
+  },
+];
