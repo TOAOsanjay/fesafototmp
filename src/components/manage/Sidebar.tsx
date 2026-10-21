@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavPage } from '../../types/manage';
+import { NavPage, OperatorRole } from '../../types/manage';
 import { navSections, operatorAccount } from '../../data/manageData';
 import {
   LayoutDashboard,
@@ -28,6 +28,12 @@ import {
   Settings,
   User,
   X,
+  HardDrive,
+  Database,
+  Layers,
+  TrendingUp,
+  Archive,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -36,6 +42,8 @@ interface SidebarProps {
   lang: 'nl' | 'en';
   isOpenMobile: boolean;
   onCloseMobile: () => void;
+  activeRole?: OperatorRole;
+  onRoleChange?: (role: OperatorRole) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -44,6 +52,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   lang,
   isOpenMobile,
   onCloseMobile,
+  activeRole = 'admin',
+  onRoleChange,
 }) => {
   const isNl = lang === 'nl';
 
@@ -51,6 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     switch (id) {
       case 'dashboard':
         return <LayoutDashboard size={16} strokeWidth={1.5} />;
+      case 'signalen':
+        return <TrendingUp size={16} strokeWidth={1.5} />;
       case 'status':
         return <Activity size={16} strokeWidth={1.5} />;
       case 'audit':
@@ -65,6 +77,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <ListTodo size={16} strokeWidth={1.5} />;
       case 'vastgelopen_uploads':
         return <AlertTriangle size={16} strokeWidth={1.5} />;
+      case 'minio_opslag':
+        return <HardDrive size={16} strokeWidth={1.5} />;
       case 'moderatie':
         return <ShieldCheck size={16} strokeWidth={1.5} />;
       case 'emailwachtrij':
@@ -81,8 +95,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <MailCheck size={16} strokeWidth={1.5} />;
       case 'agents':
         return <Bot size={16} strokeWidth={1.5} />;
+      case 'hetzner_k3s':
+        return <Layers size={16} strokeWidth={1.5} />;
+      case 'backup_herstel':
+        return <Archive size={16} strokeWidth={1.5} />;
       case 'cluster':
         return <Server size={16} strokeWidth={1.5} />;
+      case 'database_cluster':
+        return <Database size={16} strokeWidth={1.5} />;
       case 'beveiliging':
         return <Lock size={16} strokeWidth={1.5} />;
       case 'sessies':
@@ -103,6 +123,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return <Activity size={16} strokeWidth={1.5} />;
     }
   };
+
+  // Filter sections by role (Deel E.11)
+  const visibleSections = navSections
+    .map((section) => {
+      let items = section.items;
+
+      if (activeRole === 'venue') {
+        // Venue role: only venue location & party view
+        items = items.filter((i) => i.id === 'locatie' || i.id === 'tenants');
+      } else if (activeRole === 'support') {
+        // Support: party, guests, moderation, and email, no cluster data
+        const allowed: NavPage[] = [
+          'dashboard',
+          'tenants',
+          'fotografen',
+          'locatie',
+          'moderatie',
+          'emailwachtrij',
+          'email',
+          'audit',
+          'assistent',
+          'account',
+        ];
+        items = items.filter((i) => allowed.includes(i.id));
+      } else if (activeRole === 'tenant-manager') {
+        // Tenant manager: commercial and guest operations, no low-level cluster ops
+        const disallowed: NavPage[] = [
+          'hetzner_k3s',
+          'cluster',
+          'database_cluster',
+          'beveiliging',
+          'sessies',
+          'pijplijn',
+        ];
+        items = items.filter((i) => !disallowed.includes(i.id));
+      }
+
+      return {
+        ...section,
+        items,
+      };
+    })
+    .filter((section) => section.items.length > 0);
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--paper)] border-r border-[var(--border)] text-[var(--ink)]">
@@ -147,9 +210,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
 
+      {/* Role Switcher Pill Bar (Deel E.11) */}
+      <div className="px-3 pt-3 pb-2 border-b border-[var(--border)]/70 bg-[var(--paper-2)]/60">
+        <div className="flex items-center justify-between text-[10px] font-mono-code text-[var(--ink-soft)] mb-1 px-1">
+          <span className="uppercase font-bold">{isNl ? 'Actieve Rol' : 'Active Role'}</span>
+          <span className="text-[var(--accent)] font-semibold">{activeRole}</span>
+        </div>
+        <select
+          value={activeRole}
+          onChange={(e) => onRoleChange && onRoleChange(e.target.value as OperatorRole)}
+          className="w-full text-xs font-mono-code py-1 px-2 rounded-lg bg-[var(--surface)] border border-[var(--border)] text-[var(--ink)] focus:outline-hidden focus:border-[var(--accent)]"
+        >
+          <option value="admin">admin (Platformbeheerder)</option>
+          <option value="tenant-manager">tenant-manager (Feestbeheerder)</option>
+          <option value="support">support (Klantenservice)</option>
+          <option value="readonly">readonly (Alleen-lezen)</option>
+          <option value="venue">venue (Zaalbeheer / Beamer)</option>
+        </select>
+      </div>
+
       {/* Navigation Groups List */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6 text-xs" aria-label="Beheer navigatie">
-        {navSections.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.group} className="space-y-1">
             <div className="px-3 text-[10px] font-mono-code font-bold uppercase tracking-wider text-[var(--ink-soft)]/80 mb-1.5">
               {section.group}
@@ -220,7 +302,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {operatorAccount.name}
             </div>
             <div className="text-[10px] font-mono-code text-[var(--ink-soft)] truncate">
-              {operatorAccount.email} · {operatorAccount.role}
+              {operatorAccount.email} · {activeRole}
             </div>
           </div>
         </button>

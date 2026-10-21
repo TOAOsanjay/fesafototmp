@@ -42,14 +42,14 @@ export const GenericSectionView: React.FC<GenericSectionViewProps> = ({ page, la
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           {[
-            { name: 'Ingress & TLS Gateway', status: 'Gezond (24ms)', region: 'Cloudflare Edge' },
-            { name: 'Kubernetes API Server', status: 'Gezond (18ms)', region: 'node-ams-01' },
-            { name: 'PostgreSQL Database Cluster', status: 'Gezond (1.8ms)', region: 'Primary + Replica' },
-            { name: 'Redis Cache & Wachtrij', status: 'Gezond (0.4ms)', region: 'Memory buffer' },
-            { name: 'S3 Object Storage', status: 'Gezond (48ms)', region: 'Frankfurt bucket' },
+            { name: 'Traefik Ingress & TLS (k3s)', status: 'Gezond (18ms)', region: 'Hetzner LB11 (fsn1)' },
+            { name: 'Hetzner k3s API Server', status: 'Gezond (14ms)', region: 'k3s-control-fsn1-01' },
+            { name: 'CloudNativePG PostgreSQL HA', status: 'Gezond (1.2ms)', region: 'Primary + Standby' },
+            { name: 'Valkey In-Memory Buffer', status: 'Gezond (0.3ms)', region: 'valkey-cluster-0' },
+            { name: 'MinIO S3 Object Storage', status: 'Gezond (12ms)', region: 'Hetzner CSI block storage' },
             { name: 'Mollie Betalingswebhook', status: 'Verbonden', region: 'Webhook listener' },
-            { name: 'Transcode ffmpeg Workers', status: '1 waarschuwing', region: 'node-ams-02' },
-            { name: 'Mailgun E-mail Relay', status: 'Gezond', region: 'EU Relay' },
+            { name: 'ffmpeg Transcode Workers (KEDA)', status: '1 waarschuwing', region: 'k3s-worker-fsn1-01' },
+            { name: 'Stalwart Mail Server (OSS)', status: 'Gezond', region: 'Hetzner k3s pod' },
             { name: 'Beamer WebSocket Server', status: 'Gezond (9ms)', region: 'Live feed stream' },
           ].map((item, idx) => (
             <div key={idx} className="p-4 rounded-2xl bg-[var(--surface)] border border-[var(--border)] shadow-2xs space-y-2">

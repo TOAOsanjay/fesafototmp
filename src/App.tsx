@@ -20,14 +20,30 @@ import { ClusterView } from './components/manage/ClusterView';
 import { AnalyticsView } from './components/manage/AnalyticsView';
 import { AssistantView } from './components/manage/AssistantView';
 import { AccountView } from './components/manage/AccountView';
+import { StatusView } from './components/manage/StatusView';
+import { AuditView } from './components/manage/AuditView';
+import { PhotographersView } from './components/manage/PhotographersView';
+import { VenuesView } from './components/manage/VenuesView';
+import { EmailDispatcherView } from './components/manage/EmailDispatcherView';
+import { DomainsView } from './components/manage/DomainsView';
+import { VouchersView } from './components/manage/VouchersView';
+import { AgentsView } from './components/manage/AgentsView';
+import { PipelineView } from './components/manage/PipelineView';
+import { HetznerK3sView } from './components/manage/HetznerK3sView';
+import { MinioStorageView } from './components/manage/MinioStorageView';
+import { DatabaseClusterView } from './components/manage/DatabaseClusterView';
+import { SignalsView } from './components/manage/SignalsView';
+import { BackupDrillView } from './components/manage/BackupDrillView';
 import { GenericSectionView } from './components/manage/GenericSectionView';
 import { TypedConfirmModal } from './components/manage/TypedConfirmModal';
 import { ManageInventory } from './components/manage/ManageInventory';
 import { Search, X, Check, ExternalLink } from 'lucide-react';
+import { PipelineRun, OperatorRole } from './types/manage';
 
 export default function App() {
   const [lang, setLang] = useState<'nl' | 'en'>('nl');
   const [currentPage, setCurrentPage] = useState<NavPage>('dashboard');
+  const [activeRole, setActiveRole] = useState<OperatorRole>('admin');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Core Data States
@@ -149,6 +165,40 @@ export default function App() {
     showToast(`Veilige host-view geopend voor ${tenant.name} (${tenant.subdomain}).`);
   };
 
+  // Create new tenant
+  const handleCreateTenant = (newTenant: TenantParty) => {
+    setTenants((prev) => [newTenant, ...prev]);
+    showToast(`Feest "${newTenant.name}" succesvol aangemaakt!`);
+  };
+
+  // Rollback pipeline release (guarded by typed confirmation)
+  const handleRequestRollback = (run: PipelineRun) => {
+    setTypedConfirm({
+      isOpen: true,
+      title: `Rollback uitvoeren naar ${run.helmRelease}`,
+      description: `Weet je zeker dat je het productiecluster wilt terugdraaien naar commit ${run.commitSha} (${run.commitMsg})? Dit herstart alle 41 pods.`,
+      confirmWord: 'ROLLBACK',
+      action: () => {
+        setTypedConfirm(null);
+        showToast(`Gecontroleerde rollback naar ${run.helmRelease} gestart.`);
+      },
+    });
+  };
+
+  // Cordon Kubernetes node (guarded by typed confirmation)
+  const handleRequestCordon = (nodeName: string) => {
+    setTypedConfirm({
+      isOpen: true,
+      title: `Node ${nodeName} isoleren (cordon)`,
+      description: `Weet je zeker dat je ${nodeName} als unschedulable wilt markeren? Bestaande pods blijven draaien, maar nieuwe werklast wordt omgeleid.`,
+      confirmWord: 'CORDON',
+      action: () => {
+        setTypedConfirm(null);
+        showToast(`Node ${nodeName} succesvol gecordoned.`);
+      },
+    });
+  };
+
   // Render current view
   const renderView = () => {
     switch (currentPage) {
@@ -161,6 +211,18 @@ export default function App() {
             onOpenStuckModal={() => setCurrentPage('vastgelopen_uploads')}
           />
         );
+      case 'signalen':
+        return (
+          <SignalsView
+            lang={lang}
+            onShowToast={showToast}
+            onNavigate={setCurrentPage}
+          />
+        );
+      case 'status':
+        return <StatusView lang={lang} onShowToast={showToast} />;
+      case 'audit':
+        return <AuditView lang={lang} onShowToast={showToast} />;
       case 'tenants':
         return (
           <TenantsView
@@ -168,8 +230,14 @@ export default function App() {
             lang={lang}
             onImpersonate={handleImpersonate}
             onUpdatePlan={handleUpdateTenantPlan}
+            onCreateTenant={handleCreateTenant}
+            onShowToast={showToast}
           />
         );
+      case 'fotografen':
+        return <PhotographersView lang={lang} onShowToast={showToast} />;
+      case 'locatie':
+        return <VenuesView lang={lang} onShowToast={showToast} />;
       case 'bestellingen':
         return (
           <OrdersView
@@ -178,6 +246,8 @@ export default function App() {
             onRequestRefund={handleRequestRefund}
           />
         );
+      case 'kortingscodes':
+        return <VouchersView lang={lang} onShowToast={showToast} />;
       case 'plannen':
         return (
           <PlansView
@@ -188,7 +258,6 @@ export default function App() {
         );
       case 'wachtrijtaken':
       case 'vastgelopen_uploads':
-      case 'pijplijn':
         return (
           <QueuesView
             jobs={jobs}
@@ -199,19 +268,53 @@ export default function App() {
             onRequeueStuck={handleRequeueStuck}
           />
         );
+      case 'minio_opslag':
+        return <MinioStorageView lang={lang} onShowToast={showToast} />;
       case 'moderatie':
         return <ModerationView lang={lang} />;
+      case 'email':
+      case 'emailwachtrij':
+        return <EmailDispatcherView lang={lang} onShowToast={showToast} />;
+      case 'agents':
+        return <AgentsView lang={lang} onShowToast={showToast} />;
+      case 'hetzner_k3s':
+        return (
+          <HetznerK3sView
+            lang={lang}
+            onShowToast={showToast}
+            onRequestCordon={handleRequestCordon}
+          />
+        );
+      case 'backup_herstel':
+        return <BackupDrillView lang={lang} onShowToast={showToast} />;
+      case 'database_cluster':
+        return <DatabaseClusterView lang={lang} onShowToast={showToast} />;
       case 'cluster':
       case 'beveiliging':
       case 'sessies':
+        return (
+          <ClusterView
+            lang={lang}
+            onRequestCordon={handleRequestCordon}
+            onShowToast={showToast}
+          />
+        );
       case 'domeinen':
       case 'identiteit':
-        return <ClusterView lang={lang} />;
+        return <DomainsView lang={lang} onShowToast={showToast} />;
+      case 'pijplijn':
+        return (
+          <PipelineView
+            lang={lang}
+            onRequestRollback={handleRequestRollback}
+          />
+        );
       case 'analytics':
         return <AnalyticsView lang={lang} />;
       case 'assistent':
         return <AssistantView lang={lang} />;
       case 'account':
+      case 'instellingen':
         return (
           <AccountView
             lang={lang}
@@ -233,6 +336,8 @@ export default function App() {
         lang={lang}
         isOpenMobile={isMobileMenuOpen}
         onCloseMobile={() => setIsMobileMenuOpen(false)}
+        activeRole={activeRole}
+        onRoleChange={setActiveRole}
       />
 
       {/* Main Back-Office Work Area */}
@@ -244,6 +349,8 @@ export default function App() {
           onLanguageChange={setLang}
           onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onQuickSearch={() => setIsSearchOpen(true)}
+          activeRole={activeRole}
+          onRoleChange={setActiveRole}
         />
 
         {/* Dynamic Page Container */}

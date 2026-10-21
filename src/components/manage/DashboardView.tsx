@@ -54,71 +54,105 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           {isNl ? 'Systeemgezondheid & Vloot' : 'System Health & Fleet'}
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {/* Cluster Item */}
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[var(--success)]">
-              <Server size={16} strokeWidth={1.5} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {/* 1. Publieke diensten */}
+          <div
+            onClick={() => onNavigate('status')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <Server size={14} strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-[var(--ink)]">Cluster Nodes</div>
-              <div className="text-[11px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
-                <span>3/3 Gezond</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Publieke diensten</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>100% up</span>
               </div>
             </div>
           </div>
 
-          {/* Pods Item */}
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[var(--success)]">
-              <Layers size={16} strokeWidth={1.5} />
+          {/* 2. Agents */}
+          <div
+            onClick={() => onNavigate('agents')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <Layers size={14} strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-[var(--ink)]">Pods Actief</div>
-              <div className="text-[11px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
-                <span>41 draaiend</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Agents</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>5 lanen · 1 waker</span>
               </div>
             </div>
           </div>
 
-          {/* API Latency Item */}
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[var(--success)]">
-              <Zap size={16} strokeWidth={1.5} />
+          {/* 3. Keten */}
+          <div
+            onClick={() => onNavigate('pijplijn')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <Zap size={14} strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-[var(--ink)]">API Responstijd</div>
-              <div className="text-[11px] font-mono-code text-[var(--ink)] font-semibold">
-                22ms <span className="text-[var(--ink-soft)] font-normal">(p95)</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Bouw & Keten</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>Build & scan OK</span>
               </div>
             </div>
           </div>
 
-          {/* Mail Queue Item */}
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[var(--success)]">
-              <Mail size={16} strokeWidth={1.5} />
+          {/* 4. Mail */}
+          <div
+            onClick={() => onNavigate('email')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <Mail size={14} strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-[var(--ink)]">E-mailwachtrij</div>
-              <div className="text-[11px] font-mono-code text-[var(--ink)] font-semibold">
-                0 in wacht <span className="text-[var(--success)]">✓</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Stalwart Mail</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>0 in wacht</span>
               </div>
             </div>
           </div>
 
-          {/* Analytics Item */}
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
-            <div className="p-2 rounded-lg bg-emerald-50 text-[var(--success)]">
-              <BarChart2 size={16} strokeWidth={1.5} />
+          {/* 5. Back-up */}
+          <div
+            onClick={() => onNavigate('backup_herstel')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <BarChart2 size={14} strokeWidth={1.5} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-[var(--ink)]">Analytics Stream</div>
-              <div className="text-[11px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
-                <span>Realtime live</span>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Back-up & Herstel</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>Restic 02:15 OK</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 6. Uitgaande weg */}
+          <div
+            onClick={() => onNavigate('hetzner_k3s')}
+            className="flex items-center gap-2.5 p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] hover:border-[var(--ink)] cursor-pointer transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[var(--success)] shrink-0">
+              <CheckCircle2 size={14} strokeWidth={1.5} />
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[var(--ink)] truncate">Uitgaande weg</div>
+              <div className="text-[10px] font-mono-code text-[var(--success)] flex items-center gap-1 font-semibold truncate">
+                <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />
+                <span>Egress canary OK</span>
               </div>
             </div>
           </div>
@@ -303,15 +337,62 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="flex items-center gap-2">
             <AlertOctagon size={18} className="text-[var(--warning)]" />
             <h3 className="font-display font-bold text-base text-[var(--ink)]">
-              {isNl ? 'Vereist Aandacht van de Operator' : 'Needs Operator Attention'}
+              {isNl ? 'Wacht op een mens (Aandacht vereist)' : 'Awaiting Human Approval'}
             </h3>
           </div>
           <span className="text-xs font-mono-code px-2 py-0.5 rounded bg-amber-50 text-[var(--warning)] border border-amber-200 font-semibold">
-            3 items
+            4 items
           </span>
         </div>
 
         <div className="space-y-3">
+          {/* Item 0: Agent Proposal Awaiting Human Approval */}
+          <div className="p-3.5 rounded-xl bg-[var(--paper)] border border-amber-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-[var(--ink)] font-mono-code">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>cluster-prop-104 : KEDA HPA minReplicas verhogen</span>
+                <span className="text-[var(--accent)] font-semibold">(fesafoto-cluster-agent)</span>
+              </div>
+              <p className="text-[11px] text-[var(--ink-soft)] mt-0.5">
+                Voorstel voor Sanjay & Dewie: minReplicas van 1 naar 2 verhogen om video-wachttijden onder 15s te garanderen.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate('agents')}
+                className="px-3 py-1.5 rounded-lg bg-[var(--ink)] text-white hover:bg-[var(--accent)] text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+              >
+                <Eye size={12} strokeWidth={2} />
+                <span>{isNl ? 'Bekijk voorstel' : 'Review proposal'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Item 0b: Anomaly Alert */}
+          <div className="p-3.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div>
+              <div className="flex items-center gap-2 font-bold text-[var(--ink)] font-mono-code">
+                <span className="w-2 h-2 rounded-full bg-[var(--warning)]" />
+                <span>Signaal sig-01 : Uploads Mientjes 65 70% onder weekgemiddelde</span>
+                <span className="text-[var(--ink-soft)] font-normal">(Correlatie)</span>
+              </div>
+              <p className="text-[11px] text-[var(--ink-soft)] mt-0.5">
+                Gasten scannen QR wel, maar upload conversie blijft achter. Zekerheid 7 dagen / 412 events.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => onNavigate('signalen')}
+                className="px-3 py-1.5 rounded-lg bg-[var(--surface)] text-[var(--ink)] border border-[var(--border)] hover:bg-[var(--paper-2)] text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                <span>{isNl ? 'Bekijk correlatie' : 'View correlation'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Item 1: Failed transcode */}
           <div className="p-3.5 rounded-xl bg-[var(--paper)] border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div>
@@ -321,17 +402,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span className="text-[var(--ink-soft)] font-normal">(Mientjes 65)</span>
               </div>
               <p className="text-[11px] text-[var(--ink-soft)] mt-0.5">
-                Worker timeout op node-ams-02: ffmpeg geheugenlimiet bereikt bij frame 4120.
+                Worker timeout op fesafotos-node-2: ffmpeg buffer limiet overschreden bij frame 4120.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => onRequeueJob('job-9841')}
-                className="px-3 py-1.5 rounded-lg bg-[var(--ink)] text-white hover:bg-[#292524] text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                className="px-3 py-1.5 rounded-lg bg-[var(--surface)] text-[var(--ink)] border border-[var(--border)] hover:bg-[var(--ink)] hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
               >
                 <RefreshCw size={12} strokeWidth={2} />
-                <span>Herstart job</span>
+                <span>{isNl ? 'Herstart job' : 'Restart job'}</span>
               </button>
             </div>
           </div>

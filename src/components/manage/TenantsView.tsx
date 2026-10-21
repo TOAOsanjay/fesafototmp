@@ -1,12 +1,33 @@
 import React, { useState } from 'react';
-import { TenantParty, PlanId } from '../../types/manage';
-import { Search, ExternalLink, ShieldAlert, ArrowUpRight, CheckCircle2, AlertTriangle, Eye, X } from 'lucide-react';
+import { TenantParty, PlanId, TenantMediaItem } from '../../types/manage';
+import { initialTenantMedia } from '../../data/manageData';
+import { NewTenantModal } from './NewTenantModal';
+import {
+  Search,
+  ExternalLink,
+  ShieldAlert,
+  ArrowUpRight,
+  CheckCircle2,
+  AlertTriangle,
+  Eye,
+  X,
+  Plus,
+  QrCode,
+  FileArchive,
+  Copy,
+  Check,
+  Film,
+  Camera,
+  Heart,
+} from 'lucide-react';
 
 interface TenantsViewProps {
   tenants: TenantParty[];
   lang: 'nl' | 'en';
   onImpersonate: (tenant: TenantParty) => void;
   onUpdatePlan: (tenantId: string, newPlan: PlanId) => void;
+  onCreateTenant: (newTenant: TenantParty) => void;
+  onShowToast: (msg: string) => void;
 }
 
 export const TenantsView: React.FC<TenantsViewProps> = ({
@@ -14,12 +35,16 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
   lang,
   onImpersonate,
   onUpdatePlan,
+  onCreateTenant,
+  onShowToast,
 }) => {
   const isNl = lang === 'nl';
   const [searchQuery, setSearchQuery] = useState('');
   const [planFilter, setPlanFilter] = useState<'all' | PlanId>('all');
   const [healthFilter, setHealthFilter] = useState<'all' | 'healthy' | 'warning' | 'error'>('all');
   const [selectedTenant, setSelectedTenant] = useState<TenantParty | null>(null);
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const filteredTenants = tenants.filter((t) => {
     const matchesSearch =
@@ -54,6 +79,26 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
     }
   };
 
+  const handleCopyGuestLink = (slug: string) => {
+    navigator.clipboard?.writeText(`https://${slug}.fesafotos.nl/`);
+    setCopiedLink(true);
+    onShowToast(`Feestlink https://${slug}.fesafotos.nl/ gekopieerd!`);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const handleTriggerQrRegen = (tenantName: string) => {
+    onShowToast(`Nieuwe vector QR tafelkaart gegenereerd voor ${tenantName}.`);
+  };
+
+  const handleTriggerZipPackaging = (tenantName: string) => {
+    onShowToast(`ZIP packaging gestart voor ${tenantName}. De organisator ontvangt bericht per e-mail.`);
+  };
+
+  // Retrieve media items for selected tenant
+  const tenantMedia: TenantMediaItem[] = selectedTenant
+    ? initialTenantMedia[selectedTenant.slug] || []
+    : [];
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Header & Controls Bar */}
@@ -64,17 +109,20 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
           </h2>
           <p className="text-xs text-[var(--ink-soft)] mt-0.5">
             {isNl
-              ? 'Totaal 3 actieve tenants geregistreerd in het platform.'
-              : 'Total 3 active tenants registered across the platform.'}
+              ? `Totaal ${tenants.length} actieve tenants geregistreerd in het platform.`
+              : `Total ${tenants.length} active tenants registered across the platform.`}
           </p>
         </div>
 
-        {/* Action button */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono-code text-[var(--ink-soft)]">
-            Actieve vloot: 100% online
-          </span>
-        </div>
+        {/* Action button: New Tenant */}
+        <button
+          type="button"
+          onClick={() => setIsNewModalOpen(true)}
+          className="px-4 py-2 rounded-xl bg-[var(--ink)] text-white hover:bg-[#292524] text-xs font-semibold flex items-center gap-1.5 shadow-2xs self-start sm:self-auto transition-colors"
+        >
+          <Plus size={14} />
+          <span>{isNl ? 'Nieuw feest aanmaken' : 'Create Party'}</span>
+        </button>
       </div>
 
       {/* Filter Strip */}
@@ -292,7 +340,7 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-full sm:max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[90dvh] sm:max-h-[85vh] flex flex-col overflow-hidden text-[var(--ink)]"
+            className="w-full sm:max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-t-3xl sm:rounded-3xl shadow-2xl max-h-[92dvh] sm:max-h-[88vh] flex flex-col overflow-hidden text-[var(--ink)]"
           >
             {/* Header */}
             <div className="p-5 border-b border-[var(--border)] bg-[var(--paper-2)] flex items-start justify-between">
@@ -391,42 +439,101 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
                 </div>
               </div>
 
+              {/* Operator Fast Actions */}
+              <div className="p-3.5 rounded-2xl bg-[var(--paper)] border border-[var(--border)] space-y-2">
+                <div className="text-[11px] font-bold text-[var(--ink)] font-mono-code uppercase">
+                  Snelle Beheeracties
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleCopyGuestLink(selectedTenant.slug)}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--paper-2)] text-[11px] font-semibold flex items-center gap-1.5"
+                  >
+                    {copiedLink ? <Check size={12} className="text-[var(--success)]" /> : <Copy size={12} />}
+                    <span>Kopieer Gastlink</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerQrRegen(selectedTenant.name)}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--paper-2)] text-[11px] font-semibold flex items-center gap-1.5"
+                  >
+                    <QrCode size={12} className="text-[var(--accent)]" />
+                    <span>Genereer QR Tafelkaart PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleTriggerZipPackaging(selectedTenant.name)}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--paper-2)] text-[11px] font-semibold flex items-center gap-1.5"
+                  >
+                    <FileArchive size={12} className="text-[var(--ink-soft)]" />
+                    <span>Forceer ZIP Archief</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Media Moderation & Review overview */}
               <div>
-                <h4 className="font-display font-bold text-sm text-[var(--ink)] mb-2">
-                  Media Recente Uploads & Review Status
-                </h4>
-                <div className="space-y-2">
-                  <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
-                      <span className="font-mono-code">IMG_4021_Diner_Sanjay_Dewie.jpg</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono-code bg-emerald-50 text-[var(--success)] font-semibold">
-                      Geaccepteerd
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[var(--success)]" />
-                      <span className="font-mono-code">VID_9823_Openingsdans_Feest.mp4</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono-code bg-emerald-50 text-[var(--success)] font-semibold">
-                      Geaccepteerd (0:28)
-                    </span>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className="font-mono-code">Selfie_Bruidspaar_Sanne.jpg</span>
-                    </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono-code bg-amber-50 text-[var(--warning)] font-semibold">
-                      In beoordeling
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-display font-bold text-sm text-[var(--ink)]">
+                    Gastenmedia & Moderatie Status ({tenantMedia.length})
+                  </h4>
+                  <span className="text-[10px] font-mono-code text-[var(--ink-soft)]">
+                    Directe inspectie
+                  </span>
                 </div>
+
+                {tenantMedia.length === 0 ? (
+                  <div className="p-4 rounded-xl bg-[var(--paper)] border border-[var(--border)] text-center text-[var(--ink-soft)] font-mono-code">
+                    Nog geen media geüpload voor dit feest.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {tenantMedia.map((m) => (
+                      <div
+                        key={m.id}
+                        className="p-3 rounded-2xl bg-[var(--surface)] border border-[var(--border)] flex items-center justify-between text-xs"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-[var(--paper)] border border-[var(--border)] flex items-center justify-center text-[var(--ink-soft)] shrink-0 overflow-hidden">
+                            {m.type === 'video' ? (
+                              <Film size={16} className="text-[var(--accent)]" />
+                            ) : (
+                              <Camera size={16} className="text-[var(--ink-soft)]" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-mono-code font-semibold text-[var(--ink)] truncate max-w-xs">
+                              {m.filename}
+                            </div>
+                            <div className="text-[10px] font-mono-code text-[var(--ink-soft)]">
+                              Door: {m.author} · {m.sizeMb} MB · {m.cameraInfo || 'Browser upload'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1 font-mono-code text-[10px] text-[var(--ink-soft)]">
+                            <Heart size={11} className="text-[var(--accent)]" />
+                            <span>{m.likes}</span>
+                          </span>
+
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-mono-code font-semibold ${
+                              m.status === 'geaccepteerd'
+                                ? 'bg-emerald-50 text-[var(--success)]'
+                                : 'bg-amber-50 text-[var(--warning)]'
+                            }`}
+                          >
+                            {m.status === 'geaccepteerd' ? 'Geaccepteerd' : 'In beoordeling'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -454,6 +561,17 @@ export const TenantsView: React.FC<TenantsViewProps> = ({
           </div>
         </div>
       )}
+
+      {/* New Tenant Wizard Modal */}
+      <NewTenantModal
+        isOpen={isNewModalOpen}
+        onClose={() => setIsNewModalOpen(false)}
+        onCreate={(t) => {
+          onCreateTenant(t);
+          onShowToast(`Feest "${t.name}" succesvol aangemaakt en live gezet op ${t.subdomain}!`);
+        }}
+        lang={lang}
+      />
     </div>
   );
 };

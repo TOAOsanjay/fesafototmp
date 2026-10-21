@@ -70,8 +70,83 @@ export const ManageInventory: React.FC<ManageInventoryProps> = ({ lang }) => {
       states: 'Safe-mode toggle, destructive triggers (FLUSH, RESET), sign-out confirmation.',
     },
     {
+      name: 'NewTenantModal',
+      purpose: 'Self-contained modal wizard for provisioning new party tenants with automatic slug generation, hashtag defaults, plan selection, host details, and instant activation.',
+      states: 'Open/closed, slug auto-suggestion, custom domain input conditional on Event+, validation.',
+    },
+    {
+      name: 'PhotographersView',
+      purpose: 'Professional photographer portal management with uncompressed RAW pass-through, camera presets (Sony A7R V, Leica M11, Canon R5), and magic link tokens.',
+      states: 'Invite photographer modal, magic link copy to clipboard, storage quota indicators.',
+    },
+    {
+      name: 'VenuesView',
+      purpose: 'Venue display hardware operations with live 4K WebSocket beamer tokens, slideshow interval control (3s, 5s, 8s, 10s), and dBA sound limiter monitoring.',
+      states: 'Slideshow interval selector, token regeneration, aspect ratio settings (16:9, dual-screen).',
+    },
+    {
+      name: 'EmailDispatcherView',
+      purpose: 'Self-hosted Stalwart Open Source Mail Server console on Kubernetes with direct Hetzner PTR reverse DNS, Ed25519 DKIM, template previewer, and test dispatcher.',
+      states: 'Template switcher, test email dispatch, delivery log table with open rates.',
+    },
+    {
+      name: 'DomainsView',
+      purpose: 'Custom domain mapping and live DNS resolver simulation tool checking CNAME records against cname.fesafotos.nl with SSL certificate expiry details.',
+      states: 'Live DNS query probe (ok/error), add custom domain modal with instructions, auto-renew toggle.',
+    },
+    {
+      name: 'VouchersView',
+      purpose: 'Promotion voucher management for wedding planners and marketing campaigns with usage counters, expiration dates, and quick copy triggers.',
+      states: 'Create voucher modal, active/expired toggle, code copy toast.',
+    },
+    {
+      name: 'SignalsView',
+      purpose: 'Cross-surface anomaly correlation engine (Deel E.4) combining signals over workloads: uploads vs baseline, videowachtrij vs node memory, mail soft-bounces, patterns, forecasts with assumptions, and viability margins per party.',
+      states: 'Category filtering (alle/uploads/videowachtrij/mail/opslag), direct action dispatch, party status review (doorlopen/afronden).',
+    },
+    {
+      name: 'BackupDrillView',
+      purpose: 'Disaster recovery and backup posture console (Deel E.8) for 3 protection layers (etcd snapshots, Restic daily to Hetzner Object Storage, manifest exports), 90-day retention window, and quarterly restore drill verification.',
+      states: 'Layer integrity status, checksum inspection, proposal creation trigger for restore drill.',
+    },
+    {
+      name: 'AgentsView',
+      purpose: 'Deep agent lane console (Deel E.5) for all 5 model-governed agents (cluster-agent, secagent, agent-watch, agent, pidurable) plus deterministic waker, kill switch (rem), proposals with patches/rollback/smoke-tests, and OpenRouter credit watch.',
+      states: 'Kill switch toggle, proposal expansion with YAML patch & rollback, approve via applier, reject proposal, 10 control groups filter.',
+    },
+    {
+      name: 'HetznerK3sView',
+      purpose: 'Dedicated Hetzner Cloud k3s cluster infrastructure console: Hetzner Cloud Controller Manager, Hetzner CSI Driver, Hetzner Load Balancer LB11 with Proxy Protocol v2, and private network 10.0.0.0/16.',
+      states: 'Node topology overview (control-plane, workers), CSI volume snapshot trigger, vloot sync, cordon controls.',
+    },
+    {
+      name: 'MinioStorageView',
+      purpose: 'Self-hosted in-cluster MinIO distributed S3 object storage running on Hetzner CSI volumes with bucket lifecycle, quota meters, and presigned URL generation.',
+      states: 'Presigned URL generation, bucket quota meters, storage pool health, at-rest KMS encryption status.',
+    },
+    {
+      name: 'DatabaseClusterView',
+      purpose: 'CloudNativePG PostgreSQL 16 High-Availability cluster operator with synchronous streaming replication, Barman WAL archiving to MinIO, and Valkey OSS cache.',
+      states: 'Failover simulation test, replication lag indicator (0 bytes), active connections monitor, Valkey cache telemetry.',
+    },
+    {
+      name: 'PipelineView',
+      purpose: 'CI/CD container deployment and Helm release ledger with commit hashes, database migration tracking, and guarded rollback triggers.',
+      states: 'Release history, current live version badge, rollback confirmation modal.',
+    },
+    {
+      name: 'StatusView',
+      purpose: 'Comprehensive component status matrix across 9 system services with simulated latency RTT probe sweeps executed across Amsterdam and Frankfurt.',
+      states: 'Probe execution animation, latency measurement updates, warning highlight.',
+    },
+    {
+      name: 'AuditView',
+      purpose: 'Full immutable mutation logbook with search filter, actor filter, status filter, CSV export download, and JSON metadata inspection modal.',
+      states: 'Text search, status pills (success/warn/destructive), CSV download trigger, record detail modal.',
+    },
+    {
       name: 'TypedConfirmModal',
-      purpose: 'Safety-first modal primitive requiring user to type a confirmation word (e.g. REFUND or DISCARD) before executing destructive operations.',
+      purpose: 'Safety-first modal primitive requiring user to type a confirmation word (e.g. REFUND, DISCARD, CORDON, ROLLBACK) before executing destructive operations.',
       states: 'Open/closed, input match validation, escape key listener, auto-focus.',
     },
   ];

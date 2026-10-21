@@ -1,13 +1,36 @@
-import React from 'react';
-import { initialClusterNodes } from '../../data/manageData';
-import { Server, ShieldCheck, Lock, Globe, Smartphone, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { initialClusterNodes, initialPods } from '../../data/manageData';
+import { ClusterNode, ClusterPod } from '../../types/manage';
+import {
+  Server,
+  ShieldCheck,
+  Lock,
+  Globe,
+  Smartphone,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  Box,
+  Terminal,
+  X,
+} from 'lucide-react';
 
 interface ClusterViewProps {
   lang: 'nl' | 'en';
+  onRequestCordon?: (nodeName: string) => void;
+  onShowToast: (msg: string) => void;
 }
 
-export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
+export const ClusterView: React.FC<ClusterViewProps> = ({
+  lang,
+  onRequestCordon,
+  onShowToast,
+}) => {
   const isNl = lang === 'nl';
+  const [nodes, setNodes] = useState<ClusterNode[]>(initialClusterNodes);
+  const [pods, setPods] = useState<ClusterPod[]>(initialPods);
+  const [namespaceFilter, setNamespaceFilter] = useState<string>('all');
+  const [selectedPodLogs, setSelectedPodLogs] = useState<ClusterPod | null>(null);
 
   const certificates = [
     {
@@ -50,36 +73,45 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
     },
   ];
 
-  const domains = [
-    {
-      domain: 'sanjayendewie.nl',
-      tenantSlug: 'sanjayendewie',
-      partyName: 'Sanjay & Dewie',
-      dnsStatus: 'CNAME geverifieerd (cname.fesafotos.nl)',
-      sslStatus: 'SSL actief',
-      verified: true,
-    },
-    {
-      domain: 'mientjesfeest.nl',
-      tenantSlug: 'mientjes65',
-      partyName: 'Mientjes 65',
-      dnsStatus: 'Wacht op DNS propagatie (TTL 3600)',
-      sslStatus: 'Certificaat aangevraagd',
-      verified: false,
-    },
-  ];
+  const filteredPods = pods.filter(
+    (p) => namespaceFilter === 'all' || p.namespace === namespaceFilter
+  );
+
+  const handleToggleCordon = (nodeName: string) => {
+    if (onRequestCordon) {
+      onRequestCordon(nodeName);
+      return;
+    }
+    setNodes((prev) =>
+      prev.map((n) =>
+        n.name === nodeName ? { ...n, isCordoned: !n.isCordoned } : n
+      )
+    );
+    onShowToast(`Node ${nodeName} cordon-status gewijzigd.`);
+  };
+
+  const handleRestartPod = (podName: string) => {
+    setPods((prev) =>
+      prev.map((p) =>
+        p.name === podName
+          ? { ...p, restarts: p.restarts + 1, age: '10s' }
+          : p
+      )
+    );
+    onShowToast(`Pod ${podName} herstart met nieuwe container instantie.`);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       {/* Header */}
       <div className="pb-4 border-b border-[var(--border)]">
         <h2 className="font-display font-extrabold text-2xl text-[var(--ink)] tracking-tight">
-          {isNl ? 'Vloot, Cluster & Beveiliging' : 'Fleet, Cluster & Security'}
+          {isNl ? 'Vloot, Cluster & Kubernetes Toezicht' : 'Fleet, Cluster & Kubernetes'}
         </h2>
         <p className="text-xs text-[var(--ink-soft)] mt-0.5">
           {isNl
-            ? 'Kubernetes clusterstatus, SSL certificaten, actieve sessies en eigen domeinnaam verificatie.'
-            : 'Kubernetes cluster health, SSL certificates, active operator sessions, and custom domain DNS.'}
+            ? 'Kubernetes clusterstatus op europe-west4, pod inspectie, SSL certificaten en actieve operator sessies.'
+            : 'Kubernetes cluster state on europe-west4, live pod inspector, SSL certificates, and active sessions.'}
         </p>
       </div>
 
@@ -95,10 +127,14 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {initialClusterNodes.map((node) => (
+          {nodes.map((node) => (
             <div
               key={node.name}
-              className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-5 shadow-2xs space-y-4"
+              className={`bg-[var(--surface)] border rounded-3xl p-5 shadow-2xs space-y-4 transition-all ${
+                node.isCordoned
+                  ? 'border-amber-400 bg-amber-50/20'
+                  : 'border-[var(--border)]'
+              }`}
             >
               <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
                 <div className="flex items-center gap-2">
@@ -107,10 +143,17 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
                     {node.name}
                   </span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono-code bg-emerald-50 text-[var(--success)] font-bold border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
-                  <span>{node.status}</span>
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {node.isCordoned && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-mono-code bg-amber-100 text-[var(--warning)] font-bold">
+                      CORDONED
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono-code bg-emerald-50 text-[var(--success)] font-bold border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)]" />
+                    <span>{node.status}</span>
+                  </span>
+                </div>
               </div>
 
               {/* Resource meters */}
@@ -144,14 +187,121 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
 
               <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between text-[11px] font-mono-code text-[var(--ink-soft)]">
                 <span>{node.podsRunning} pods</span>
-                <span>Uptime: {node.uptime}</span>
+                <button
+                  type="button"
+                  onClick={() => handleToggleCordon(node.name)}
+                  className="text-[10px] underline hover:text-[var(--ink)]"
+                >
+                  {node.isCordoned ? 'Uncordon node' : 'Cordon node'}
+                </button>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* 2. SSL Certificates & Expiry Countdown */}
+      {/* 2. Kubernetes Pods Table */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl overflow-hidden shadow-2xs">
+        <div className="p-4 border-b border-[var(--border)] bg-[var(--paper-2)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="font-display font-bold text-base text-[var(--ink)]">
+              {isNl ? 'Kubernetes Pods Inspectie (41 actief)' : 'Kubernetes Pods Inspection'}
+            </h3>
+            <p className="text-xs text-[var(--ink-soft)]">
+              Inspecteer individuele pod containers, herstarts en geheugengebruik.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[var(--paper)] p-1 rounded-xl border border-[var(--border)] text-xs">
+            {['all', 'core', 'transcode', 'ingress', 'mail', 'venues'].map((ns) => (
+              <button
+                key={ns}
+                type="button"
+                onClick={() => setNamespaceFilter(ns)}
+                className={`px-2 py-0.5 rounded-lg font-mono-code text-[11px] transition-colors ${
+                  namespaceFilter === ns
+                    ? 'bg-[var(--surface)] text-[var(--ink)] font-bold shadow-2xs'
+                    : 'text-[var(--ink-soft)] hover:text-[var(--ink)]'
+                }`}
+              >
+                {ns}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[var(--border)] bg-[var(--paper)] text-[var(--ink-soft)] font-mono-code uppercase text-[10px]">
+                <th className="py-2.5 px-4">Pod Naam & Namespace</th>
+                <th className="py-2.5 px-4">Node</th>
+                <th className="py-2.5 px-4">CPU / RAM</th>
+                <th className="py-2.5 px-4">Herstarts</th>
+                <th className="py-2.5 px-4">Leeftijd</th>
+                <th className="py-2.5 px-4 text-right">Actie</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border)] font-mono-code text-[11px]">
+              {filteredPods.map((pod) => (
+                <tr key={pod.name} className="hover:bg-[var(--paper)]">
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[var(--ink)] flex items-center gap-1.5">
+                      <Box size={13} className="text-[var(--accent)]" />
+                      <span>{pod.name}</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--ink-soft)]">
+                      ns: {pod.namespace} · versie: {pod.version}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-[var(--ink-soft)] whitespace-nowrap">
+                    {pod.node}
+                  </td>
+                  <td className="py-3 px-4 text-[var(--ink)] tabular-nums whitespace-nowrap">
+                    {pod.cpuMilli}m / {pod.memMb}MB
+                  </td>
+                  <td className="py-3 px-4 whitespace-nowrap">
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                        pod.restarts > 0
+                          ? 'bg-amber-100 text-[var(--warning)]'
+                          : 'bg-emerald-50 text-[var(--success)]'
+                      }`}
+                    >
+                      {pod.restarts} restarts
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-[var(--ink-soft)] whitespace-nowrap">
+                    {pod.age}
+                  </td>
+                  <td className="py-3 px-4 text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPodLogs(pod)}
+                        className="p-1 rounded-lg border border-[var(--border)] hover:bg-[var(--paper-2)] text-[var(--ink)]"
+                        title="Bekijk stdout / stderr container logs"
+                      >
+                        <Terminal size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRestartPod(pod.name)}
+                        className="px-2 py-0.5 rounded-lg border border-[var(--border)] hover:bg-[var(--paper-2)] text-[var(--ink)] text-[10px]"
+                        title="Herstart container"
+                      >
+                        Herstart
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 3. SSL Certificates & Expiry Countdown */}
       <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 shadow-2xs">
         <div className="pb-3 mb-4 border-b border-[var(--border)]">
           <h3 className="font-display font-bold text-base text-[var(--ink)]">
@@ -186,53 +336,6 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
                 </span>
                 <span className="px-2.5 py-1 rounded-lg bg-[var(--surface)] border border-[var(--border)] font-mono-code text-[11px] font-bold text-[var(--ink)]">
                   Verloopt over {cert.expiresIn}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. Custom Domains & DNS Routing */}
-      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-6 shadow-2xs">
-        <div className="pb-3 mb-4 border-b border-[var(--border)]">
-          <h3 className="font-display font-bold text-base text-[var(--ink)]">
-            {isNl ? 'Gekoppelde Eigen Domeinen' : 'Connected Custom Domains'}
-          </h3>
-          <p className="text-xs text-[var(--ink-soft)]">
-            {isNl
-              ? 'DNS routering voor klanten met een Event+ pakket.'
-              : 'DNS routing for customers on the Event+ tier.'}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {domains.map((dom) => (
-            <div
-              key={dom.domain}
-              className="p-3.5 rounded-2xl bg-[var(--paper)] border border-[var(--border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-            >
-              <div>
-                <div className="font-mono-code font-bold text-sm text-[var(--ink)] flex items-center gap-2">
-                  <Globe size={14} className="text-[var(--accent)]" />
-                  <span>{dom.domain}</span>
-                  <span className="text-[11px] text-[var(--ink-soft)] font-normal">
-                    → {dom.tenantSlug}.fesafotos.nl
-                  </span>
-                </div>
-                <div className="text-[11px] text-[var(--ink-soft)] mt-0.5">
-                  Tenant: <strong>{dom.partyName}</strong>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span
-                  className={`inline-flex items-center gap-1 font-mono-code text-[11px] font-semibold ${
-                    dom.verified ? 'text-[var(--success)]' : 'text-[var(--warning)]'
-                  }`}
-                >
-                  <CheckCircle2 size={12} strokeWidth={2} />
-                  <span>{dom.dnsStatus}</span>
                 </span>
               </div>
             </div>
@@ -285,6 +388,57 @@ export const ClusterView: React.FC<ClusterViewProps> = ({ lang }) => {
           ))}
         </div>
       </div>
+
+      {/* Pod Logs Drawer / Modal */}
+      {selectedPodLogs && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          onClick={() => setSelectedPodLogs(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-[var(--surface)] border border-[var(--border)] rounded-3xl shadow-2xl p-6 text-[var(--ink)] space-y-4"
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+              <div>
+                <span className="text-[10px] font-mono-code font-bold uppercase text-[var(--accent)]">
+                  Pod Container Logs (stdout/stderr)
+                </span>
+                <h3 className="font-mono-code font-bold text-base text-[var(--ink)]">
+                  {selectedPodLogs.name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPodLogs(null)}
+                className="w-7 h-7 rounded-full bg-[var(--paper)] flex items-center justify-center"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-[#1c1917] text-[#faf7f2] font-mono-code text-[11px] space-y-1 max-h-72 overflow-y-auto">
+              <div>2026-10-20T22:15:00.012Z [INFO] Initializing service container on {selectedPodLogs.node}</div>
+              <div>2026-10-20T22:15:01.109Z [INFO] Connected to internal redis bus at 10.244.0.12:6379</div>
+              <div>2026-10-20T22:15:02.418Z [INFO] Health probe liveness /readiness HTTP 200 OK</div>
+              <div>2026-10-20T22:15:10.880Z [INFO] Pod age: {selectedPodLogs.age}, Restarts: {selectedPodLogs.restarts}</div>
+              <div>2026-10-20T22:15:33.744Z [INFO] Ready to accept ingress traffic on port 8080.</div>
+            </div>
+
+            <div className="pt-2 border-t border-[var(--border)] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedPodLogs(null)}
+                className="px-4 py-2 rounded-xl bg-[var(--ink)] text-white text-xs font-semibold"
+              >
+                Sluiten
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

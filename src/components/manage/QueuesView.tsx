@@ -98,13 +98,60 @@ export const QueuesView: React.FC<QueuesViewProps> = ({
       {/* Header */}
       <div className="pb-4 border-b border-[var(--border)]">
         <h2 className="font-display font-extrabold text-2xl text-[var(--ink)] tracking-tight">
-          {isNl ? 'Wachtrijtaken & Vastgelopen Uploads' : 'Queue Jobs & Stuck Uploads'}
+          {isNl ? 'Wachtrijtaken, KEDA Autoscaler & Vastgelopen Uploads' : 'Queue Jobs, KEDA Autoscaler & Stuck Uploads'}
         </h2>
         <p className="text-xs text-[var(--ink-soft)] mt-0.5">
           {isNl
-            ? 'Realtime toezicht op achtergrondverwerking: ffmpeg video transcoding, ZIP-generatie en S3 pipeline.'
-            : 'Realtime supervisor for background workers: ffmpeg video transcoding, ZIP generation, and S3 pipeline.'}
+            ? 'Realtime toezicht op achtergrondverwerking: ffmpeg video transcoding met KEDA HPA, ZIP-generatie en MinIO S3 opslag.'
+            : 'Realtime supervisor for background workers: ffmpeg video transcoding with KEDA HPA, ZIP generation, and MinIO S3.'}
         </p>
+      </div>
+
+      {/* KEDA HPA Video Transcode Autoscaler Panel */}
+      <div className="bg-[var(--surface)] border border-[var(--border)] rounded-3xl p-5 shadow-2xs space-y-3 text-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-[var(--border)] gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-700 font-mono-code font-bold text-[11px] border border-purple-200">
+              KEDA HPA
+            </div>
+            <div>
+              <div className="font-bold text-sm text-[var(--ink)] font-mono-code">
+                ffmpeg-worker-transcode (Horizontal Pod Autoscaler)
+              </div>
+              <div className="text-[11px] text-[var(--ink-soft)]">
+                Trigger: Valkey / Redis wachtrijdiepte &gt; 2 taken · Target CPU: 75%
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="font-mono-code text-xs font-bold text-[var(--accent)]">
+              2 / 8 Replicas Actief
+            </span>
+            <span className="px-2 py-0.5 rounded text-[10px] font-mono-code bg-emerald-50 text-[var(--success)] font-bold border border-emerald-200">
+              Auto-Scaling Gezond
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono-code text-[11px]">
+          <div className="p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
+            <div className="text-[10px] text-[var(--ink-soft)] uppercase">Min / Max Pods</div>
+            <div className="font-bold text-[var(--ink)] mt-0.5">1 min / 8 max</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
+            <div className="text-[10px] text-[var(--ink-soft)] uppercase">Huidige Wachtrij</div>
+            <div className="font-bold text-[var(--ink)] mt-0.5">1 actieve job</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
+            <div className="text-[10px] text-[var(--ink-soft)] uppercase">Hetzner Node Target</div>
+            <div className="font-bold text-[var(--ink)] mt-0.5">k3s-worker-fsn1-01</div>
+          </div>
+          <div className="p-2.5 rounded-xl bg-[var(--paper)] border border-[var(--border)]">
+            <div className="text-[10px] text-[var(--ink-soft)] uppercase">Scale Down Delay</div>
+            <div className="font-bold text-[var(--success)] mt-0.5">300s cooldown</div>
+          </div>
+        </div>
       </div>
 
       {/* 1. Stuck Upload Alert Banner & Actions */}

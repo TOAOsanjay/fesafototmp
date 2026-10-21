@@ -1,0 +1,1101 @@
+# Ontwerpprompt: beheerpaneel-uitbreiding met diepgaande integraties
+
+> Dit document staat in de repo op `docs/product/design-prompt-beheer-uitbreiding.md`, naast de
+> bestaande `docs/product/DESIGN-PROMPT-beheerpaneel-aistudio.md` (dezelfde opmaak en toon).
+> Deel 1 is de gebruiksaanwijzing, Deel 2 de kant-en-klare AI Studio-prompt, Deel 3 de
+> onderbouwing met de bron per clusteronderdeel en per externe dienst. Het is opgesteld op
+> 2026-10-21 en bij het opnemen in de repo tegen de manifesten en de code nagerekend; er is
+> geen projectcode gewijzigd.
+
+---
+
+## 1. Gebruiksaanwijzing (voor de captain)
+
+**Wat je doet**
+
+1. Open Google AI Studio (aistudio.google.com), kies **"Create prompt"** of een leeg chatvenster met **Gemini 2.5 Pro** (of het nieuwste Pro-model dat er staat).
+2. Zet de **temperatuur op 0,7** (een tikje creatief voor het ontwerp, maar nog steeds precies op de cijfers). Laat "thinking" aan/hoog staan: de prompt vraagt veel rekenwerk over de meegegeven cijfers.
+3. Zet **"Structured output" UIT** en **"Grounding" UIT** (wij geven de feiten zelf mee; de prompt mag niets van het web halen).
+4. Plak het hele codeblok uit §2 hieronder in één keer in het instructieveld. Er staat niets in dat je eerst moet invullen.
+5. Vraag daarna in dezelfde chat om het resultaat als **één React-bestand per scherm** (of als zip), in de vorm van het eerdere `fesafototmp`-ontwerp.
+
+**Wat je terugkrijgt**
+
+Een volledig React/Tailwind-ontwerp (meerdere bestanden) van het uitgebreide beheerpaneel: een schil met navigatie, plus per scherm de kaarten, tabellen, grafieken, filters en actievensters, met mock-data die de vorm van onze echte API-antwoorden volgt. Geen echte sleutels, geen echte persoonsgegevens, geen echte bedragen.
+
+**Hoe wij het overnemen**
+
+Het ontwerp is een **vorm**, geen waarheid. Wij porten het naar `manage-app/` (React 18 + TanStack Router + Tailwind v4, zie §3) en vervangen de mock-data door de echte bronnen uit §3 per scherm. Onder elke functie in de prompt staat al bij welke bron hij hoort, zodat de port geen speurwerk is. Wat nog niet bestaat (een nieuw API-endpoint) staat in §3 als **te bouwen**; verzin daar geen cijfers voor, maar toon een eerlijke lege staat.
+
+---
+
+## 2. De kant-en-klare AI Studio-prompt
+
+Kopieer alles tussen de horizontale lijnen.
+
+---
+
+```
+# ROL
+
+Je bent een senior platform-engineer, productontwerper en data-architect in één. Je ontwerpt
+het beheerpaneel van "fesafotos": een platform waar gasten op een feest foto's en video's
+maken via een QR-code en die in één gedeeld album belanden. Wij runnen het hele platform zelf
+en hebben volledige toegang tot alle data: elke database, elke container, elke agent, elke
+mail, elke back-up en elke externe dienst. Jij ontwerpt de volgende uitbreiding van het
+beheerpaneel: niet een mooier dashboard, maar een paneel dat de hele keten begrijpt en dat de
+beheerder laat zien wat er speelt, waarom, wat het kost en wat hij eraan kan doen.
+
+# OPDRACHT IN ÉÉN ZIN
+
+Ontwerp een volledig, functioneel en visueel afgewerkt beheerpaneel (React + Tailwind) dat de
+gegevens van onze hele Kubernetes-omgeving en al onze externe diensten samenbrengt in schermen,
+kaarten, grafieken en acties, met de nadruk op DIEPGAANDE INTEGRATIES: signalen over
+oppervlakken heen combineren, afwijkingen en voorspellingen tonen, kosten en gedrag per feest
+berekenen, en herstel- en verbeteracties met goedkeuring aanbieden.
+
+# DEEL A. CONTEXT: WAT FESAFOTOS IS EN WAAROP HET DRAAIT
+
+## A.1 Het product in één alinea
+Een feestorganisator opent een album. Op tafel staan kaartjes met een QR-code. Een gast scant
+de code, komt in de gasten-app, en kan foto's en video's maken en uploaden naar het album. De
+fotograaf laadt zijn eigen beelden in. Alles is binnen enkele seconden op de beamer of het
+scherm van de zaal te zien. De organisator beheert het album, de gastenlijst, de
+uitnodigingen, het gastenboek en de curatie (welke foto's blijven staan). Daarnaast verkoopt
+het platform extra's (een groter album, meer video's, langere bewaring) via een betaalprovider.
+
+## A.2 De stack
+- **Kubernetes:** k3s v1.36.5 op drie Hetzner-nodes (`fesafotos-node-1/2/3`), alle drie
+  control-plane + etcd. Netwerk via Cilium. Opslag via de Hetzner CSI (`hcloud-volumes`).
+  Ingress via Traefik. Certificaten via cert-manager met één ClusterIssuer
+  (`letsencrypt-fesafoto`).
+- **De pool / gasten-app:** de Node-service `fesafoto-pool` (één per tenant een eigen SQLite
+  `identity.sqlite`, plus één systeembrede transcode-wachtrij). Hier leven albums, media,
+  gasten-identiteit, gastenboek, uitnodigingen, moderatie en de media-tellers.
+- **De besturingskern (control plane):** de Node-service `fesafoto-control-plane` met één
+  SQLite-database. Hier leven tenants, accounts, abonnementen, orders, vouchers, jobs, audit,
+  domein-aanvragen, en de ops-besluiten. Dit is de bron van waarheid voor alles wat met geld,
+  rechten en levensloop te maken heeft. Er is precies één schrijfpad (`store.mutate()`) en het
+  auditlog is alleen-toevoegen.
+- **De auth-laag:** de Node-service `fesafoto-auth` (`login.fesafotos.nl`) met magic-link-login,
+  sessies op een eigen volume, en de beheer-API op `manage.fesafotos.nl`. Dit is de enige laag
+  met een echt rollenmodel (admin, tenant-manager, support, readonly, venue, system).
+- **De agent-lanen:** vijf modelgestuurde diensten plus één deterministische waker die het
+  platform in de gaten houden en verbeteren: `fesafoto-cluster-agent` (cluster-gezondheid en
+  voorstellen), `fesafoto-security-agent` (beveiligingspostuur), `fesafoto-agent-watch`
+  (harding en moderatiewachtrij), `fesafoto-agent` (gast-assistent en abuse-signalen),
+  `fesafoto-pidurable-agent` (dagelijkse ops-digest en melding-triage) en
+  `fesafoto-agent-watcher` (deterministisch: zet een vastgelopen provisioning-taak opnieuw in
+  de wachtrij, zonder model). Elke modelgestuurde laan heeft een eigen volume, een eigen rem
+  (kill switch), een eigen budget en een eigen `/health`- en `/guard`-eindpunt; de
+  deterministische waker heeft geen van die vier (bewust). Geen enkele laan verandert
+  iets aan het cluster zonder menselijke goedkeuring; zij stellen voor, de mens beslist, en een
+  aparte identiteit (de applier) voert uit.
+- **De statistiek:** de zelf-gehoste Plausible (`analytics.fesafotos.nl`) met ClickHouse en
+  Postgres. Alle productevents gaan daar naartoe, PII-vrij en met een vaste lijst van
+  gebeurtenissen.
+- **De mail:** onze eigen Stalwart-mailserver (`mail.fesafotos.nl` voor webmail,
+  `mailbeheer.fesafotos.nl` voor beheer) met een eigen in- en uitgaand kanaal. Alle
+  platformmail gaat via één koppelstuk in de besturingskern (`mail.js`); er is geen tweede weg.
+- **De back-ups:** drie lagen: een etcd-snapshot, een dagelijkse restic-back-up naar
+  Hetzner Object Storage, en een manifest-export. Elke drie maanden draait er een
+  herstelproef (restore drill) die de laatste snapshot terugzet in een schone werkmap en
+  controleert of elke database klopt en elke tenant compleet is.
+- **De bouw- en uitrolketen:** een eigen registry (`fesafoto-registry`), een bouw-CronJob
+  (`fesafoto-build`), een scan-CronJob (`fesafoto-scan`, Trivy) en een uitrol-CronJob
+  (`fesafoto-deploy`). De versie van elke dienst is van de keten: de manifests lezen de
+  mutabele tag `stable` en de keten zet per commit de git-SHA-tag, dus er is geen
+  terugschrijf-taak meer die de draaiende tag in de manifests schrijft (die is op
+  2026-10-21 vervallen).
+- **Wij hebben volledige toegang:** wij mogen alles lezen, elke dienst heeft een API of een
+  eindpunt, en de sleutels staan in Kubernetes-secrets. Jij hoeft dus niets te verzinnen; elk
+  cijfer dat jij in het ontwerp zet, moet uit een van de bronnen in Deel B komen.
+
+## A.3 Wat het paneel moet zijn
+Het paneel is het bedieningshuis van het platform. Het moet in één oogopslag antwoord geven op
+de vragen: draait alles, wat is er kapot of op weg kapot te gaan, wat kost het, wat doen de
+feesten en de gasten, wat doen onze agents en waar wachten zij op een mens, en wat kan de
+beheerder met één klik goedkeuren of terugdraaien. Het moet niet-technische mensen (support,
+zaalbeheer) niet laten verdwalen en technische mensen (platformbeheer) niets onthouden.
+
+---
+
+# DEEL B. WAT ER IN KUBERNETES DRAAAT (inventaris met opbrengst per stuk)
+
+Elke regel noemt: de werkbelasting, waar hij leeft, en **welke gegevens dat oplevert** voor het
+paneel. Gebruik precies deze namen in het ontwerp, zodat de beheerder en wij hetzelfde bedoelen.
+
+## B.1 De publieke diensten
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-pool` (Deployment) | `fesafoto-system` | Albums, media-tellers per tenant, gasten-identiteit, gastenboek, uitnodigingen, moderatie-queue, transcode-wachtrij, dagreeksen uploads. |
+| `fesafoto-control-plane` (Deployment) | `fesafoto-system` | Tenants, accounts, orders, vouchers, jobs, audit, domein-aanvragen, ops-besluiten, quota-tellers. |
+| `fesafoto-auth` (Deployment) | `fesafoto-system` | Sessies, magic-links, rollen en scope per beheerder, CSRF-token per sessie. |
+| `fesafoto-site` (Deployment) | `fesafoto` | De publieke website (`fesafotos.nl`); statische inhoud en de aanmeldpagina. |
+| `fesafoto-api` (Deployment) | `fesafoto` | De partner-API voor zaalbeheer (beamer-bediening van een feest). |
+| `fesafoto-webmail` (Deployment) | `fesafoto-system` | De webmail-koppeling (SnappyMail) op `mail.fesafotos.nl`. |
+| `stalwart` (Deployment) | `fesafoto-system` | De eigen mailserver: postvakken, in- en uitgaande wachtrijen, spamstatus. |
+| `mta-admin-proxy` (Deployment) | `fesafoto-system` | De beheer-API van de mailserver op `mailbeheer.fesafotos.nl` (nooit direct open). |
+| `fesafoto-mailadmin-authproxy` (Deployment) | `fesafoto-system` | De inlogdoorgang vóór de mailbeheer-interface (OAuth2-proxy). |
+| `analytics-oauth2-proxy` + `analytics-sso-bridge` (Deployments) | `fesafoto-analytics` | De inlogdoorgang en de brug naar het analysedashboard. |
+| `radar` (Deployment) | `radar` | Het analysedashboard zelf (`radar.fesafotos.nl`). |
+| `system-upgrade-controller` (Deployment) | `system-upgrade` | De automatische node-upgrades (k3s-plan). |
+
+## B.2 De media- en verwerkingslaag
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-transcode` (Deployment) | `fesafoto-system` | De wachtrij van videowerk: wachtend, in behandeling, klaar, mislukt, in quarantaine; per stuk de herkomst, de tijdsduur en de fout. |
+| `fesafoto-image-convert` (Deployment) | `fesafoto-system` | Hetzelfde, voor beeldformaten. |
+| `fesafoto-photobooth-ingest` (Deployment) | `fesafoto-system` | Beelden die via een postvak van de mailserver binnenkomen (fotobooth), met de uitkomst per zending. |
+
+## B.3 De agent-lanen (elk met eigen rem, budget en eindpunt)
+| Werkbelasting | Namespace | Poort / eindpunten | Gegevens die het oplevert |
+|---|---|---|---|
+| `fesafoto-cluster-agent` | `fesafoto-ops` | poort **8091**; `/health`, `/guard`, `/findings`, `/proposals`, `/proposals/:id`, `/incidents`, `/ops-status`, `/logs`, `/certificates` | Open/kritieke/geescaleerde bevindingen, hun ouderdom en laatste scan; de rem-stand en het dagverbruik van het model; voorstellen met patch, terugrolpad, rooktest en bewijs; concept-incidenten; de clusterstatus; het latency-venster; de certificaatstatus. |
+| `fesafoto-security-agent` | `fesafoto-ops` | poort **8090**; `/health`, `/guard`, `/findings`, `/groups`, `/proposals`, `/incidents` | Bevindingen in tien controlegroepen (auth, authz, headers, tls, secrets, cluster, images, network, audit, surface); dezelfde rem- en verbruiksgegevens. |
+| `fesafoto-agent-watch` | `fesafoto-ops` | poort **8092**; `/health`, `/guard`, `/audit`, `/findings`, `/proposals`, `/incidents` | Hardingsresultaten, moderatie-achterstand over alle tenants, oudste wachttijd, geescaleerde meldingen; een alleen-toevoegen audittrail. |
+| `fesafoto-agent` (gast-assistent) | `fesafoto-system` | poort **8085**; `/healthz`, `/watch/abuse-summary`, gesprekken en suggesties | Vragen en weigeringen van gasten (alleen tellingen, nooit de tekst), plafondtellers, abuse-signalen per klant en per apparaat. |
+| `fesafoto-pidurable-agent` | `fesafoto-system` | poort **8090**; `/health` | De dagelijkse ops-digest en de melding-triage: concepten met de wachtrij waaruit ze komen. |
+| `fesafoto-agent-watcher` | `fesafoto-system` | geen poort, geen Service (bewust) | Deterministisch: hervat een vastgelopen provisioning-taak; geen model, geen budget, geen uitgaand kanaal. |
+
+**Wat elke laan aan het paneel geeft:** een waarheidsgetrouw beeld van het eigen functioneren
+(hoeveel rondes, hoeveel modelaanroepen, of de rem aan staat, of de laatste ronde recent is),
+plus de bevindingen en voorstellen. De rem en het budget staan per laan in een eigen register
+(`agent-autonomy.json`): sommige gezinnen mogen autonoom meten, voorstellen en escaleren;
+reparatie toepassen is altijd mens-gated; cluster-brede reparatie (een volume, een node, RBAC)
+is mensenwerk; verwijderen is nooit toegestaan.
+
+## B.4 De bouw- en uitrolketen
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-registry` (Deployment) | `fesafoto-build` | De imagecatalogus: welke tags bestaan, welke gebouwd zijn, welke gescand zijn. |
+| `fesafoto-build` (CronJob, elke 5 min) | `fesafoto-build` | Per ronde: welke images zijn gebouwd, met welke tag, hoe lang het duurde. |
+| `fesafoto-scan` (CronJob, elke 15 min) | `fesafoto-system` | De Trivy-uitkomst per image-tag: welke kritieke en hoge lekken zijn gevonden. |
+| `fesafoto-deploy` (CronJob, elke 10 min) | `fesafoto-system` | Welke images zijn uitgerold, naar welke Deployment, met welke gezondheidscontrole en of er is teruggerold. |
+
+De terugschrijf-taak (`fesafoto-commitback`) bestaat niet meer: sinds 2026-10-21 dragen de
+manifests de mutabele tag `stable` en zet de keten per commit de git-SHA-tag, dus er valt
+niets meer terug te schrijven. Noem die taak niet in het ontwerp.
+
+## B.5 De ops-ruimte (de wakers)
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-ops-deadman` (CronJob, elk uur) | `fesafoto-ops` | Of elke laan nog leeft: per doel de laatste ronde, de maximale leeftijd en de toestand (onbereikbaar, onleesbaar, verouderd, geen tijdstempel, bewust stil). |
+| `fesafoto-ops-mailer` (CronJob, elke minuut) | `fesafoto-ops` | De postbus van de agents: wat er klaarstaat om te mailen en wat al verstuurd is. |
+| `fesafoto-ops-applier` (CronJob, elke minuut) | `fesafoto-ops` | Goedgekeurde voorstellen die wachten op uitvoering, en de uitkomst per stuk. |
+| `fesafoto-egress-canary` (DaemonSet, elke 10 min) | `fesafoto-ops` | Per node of de uitgaande weg werkt naar de registry, de Hetzner-API, de opslag en het modelplatform. |
+| `fesafoto-openrouter-credit` (CronJob, elk uur) | `fesafoto-ops` | Het modelsaldo en het verbruik per laan; een waarschuwing onder een drempel. |
+| `fesafoto-restore-drill` (CronJob, elk kwartaal) | `fesafoto-ops` | De uitkomst van de herstelproef: geslaagd of mislukt, met aantallen bestanden en tenants. |
+
+## B.6 De beveiligings- en netwerklaag
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-egress-gateway` (DaemonSet) | `fesafoto-system` | Welk uitgaand verkeer per node is toegestaan; de poortwachter. |
+| `fesafoto-node-cleanup` (DaemonSet) | `fesafoto-system` | Opruimwerk per node (schijf, oude images). |
+| `fesafoto-wildcard-cert` (CronJob, dagelijks) | `fesafoto-system` | Of de wildcard-certificaten nog geldig zijn en of nieuwe hosts een certificaat hebben. |
+
+## B.7 De statistiek, de identiteit en de monitoring
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `plausible` (Deployment) | `fesafoto-analytics` | Bezoek en productevents per dag, per pagina en per eigenschap (tenant, oppervlak, plan). |
+| `plausible-db` (Postgres) + `plausible-events-db` (ClickHouse) (Deployments) | `fesafoto-analytics` | De ruwe gebeurtenissen en de doelen; de basis onder de grafieken. |
+| `analytics-oauth2-proxy` + `analytics-sso-bridge` (Deployments) | `fesafoto-analytics` | De SSO-poort van het analysedashboard. |
+| `dex` (Deployment) | `radar` | De identiteitsprovider: wie zich aanmeldt, met welke client en welke rol. |
+| `oauth2-proxy` (Deployment) | `radar` | De SSO-poortwachter vóór de cluster-UI. |
+| `radar` (Deployment, Skyhook Radar) | `radar` | Een bestaande read-only Kubernetes-UI op `radar.fesafotos.nl` (werkbelastingen, events, logs). **Belangrijk voor het ontwerp:** dit is de bestaande "kijk in het cluster"-tool; het nieuwe paneel moet hem niet dupliceren, maar de operationele en productie-signalen toevoegen die Radar niet heeft. |
+| `plausible-verify` + `plausible-watch` (CronJobs) | `fesafoto-system` | Of de statistiek nog gebeurtenissen ontvangt (kunstmatige proef) en of de alarmregels kloppen. |
+| `analytics-alerts` (CronJob, elke 15 min) | `fesafoto-analytics` | Afwijkingen in de statistiek, met een eigen ontdubbeling per dag. |
+| `kps-prometheus` (StatefulSet) | `monitoring` | Alle metriek: CPU, geheugen, schijf, netwerk, pod-herstarten, wachttijden. |
+| `kps-grafana` (Deployment) | `monitoring` | De bestaande dashboards en de koppeling met de metriek. |
+| `kps-alertmanager` (StatefulSet) | `monitoring` | De alarmen uit Prometheus; sinds 2026-10-21 met een echt mailkanaal (via de in-cluster MTA) en Watchdog als dagelijkse levensproef. |
+| `kps-node-exporter` (DaemonSet) | `monitoring` | Per node de metriek (draait in de hostnetwerk-ruimte). |
+| `otel-collector` (Deployment) | `monitoring` | De OTLP-ontvanger op poort 4318 (`k8s/60-otel-collector.yaml`): zet de sporen (spans) van de eigen diensten om in RED-metrieken (aanroepen, fouten, duurhistogram per dienst en route) voor Prometheus. De spans zelf worden bewust niet bewaard. |
+| `cluster-autoscaler` (Deployment, 0 replica's) | `kube-system` | Staat uit; wel een signaal dat opschalen een bewuste keuze is. |
+
+**Wat de sporenlaag toevoegt.** De diensten sturen hun sporen naar de collector; dat zijn de
+pool, de agent-lanen (`fesafoto-cluster-agent`, `fesafoto-security-agent`, `fesafoto-agent-watch`,
+`fesafoto-agent`, `fesafoto-agent-watcher`, `fesafoto-pidurable-agent`) én de kern- en auth-laag
+(`fesafoto-control-plane`, `fesafoto-auth`, `fesafoto-api`) en de pool-workers
+(`fesafoto-transcode`, `fesafoto-image-convert`, `fesafoto-retention`, `fesafoto-mta-purge`).
+De collector zet de sporen om in RED-metrieken en Prometheus leest die uit. Daarmee kan het
+paneel **per dienst en per route** een latentiefunctie en een foutpercentage tonen, en zien
+welke route trager werd voordat de dienst omviel. Wat het paneel **niet** kan: een losse trage
+aanroep aanwijzen, want de spans zelf worden niet bewaard (er is geen trace-backend). Het paneel
+zegt dus per dienst eerlijk "gemeten" of "niet gemeten", en belooft geen "trace detail".
+
+## B.8 De opslag en de back-ups
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `fesafoto-backup-daily` (CronJob, dagelijks) | `fesafoto-system` | Of de dagelijkse restic-back-up is gelukt, hoe groot hij was en hoelang hij duurde. |
+| `fesafoto-backup-state` (CronJob, elk uur) | `fesafoto-system` | De laatst bekende back-upstaat per bron. |
+| `fesafoto-backup` (ServiceAccount + leesrollen) | `fesafoto-system` | De rechten waarmee de back-up leest, niet een werkbelasting met eigen gegevens. |
+| Volumes (`hcloud-volumes`) | overal | Per volume: welke pod hem gebruikt, hoe vol hij zit en of hij vastzit aan één node. |
+
+## B.9 De tenant-laag
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| Per-tenant ingresses (`tenant-<naam>`) | `fesafoto-system` | Welke feesten een eigen adres hebben (`<naam>.fesafotos.nl`), met hun certificaat. |
+| `mientjes-case0` (Deployment) | `fesafoto-party` | Een speciaal feest met eigen adres en eigen beheer. |
+| `fesafoto-invites` (Ingress) | `fesafoto-system` | Het uitnodigingsdomein (`fesainvites.nl`). |
+| `blissframe` (Deployment) | `blissframe` | Een losse placeholdersite voor `blissframe.nl`/`blissframe.eu` (statische pagina uit een ConfigMap, nginx). **Buiten scope van dit paneel**: geen feest, geen gast, geen tenant. |
+
+## B.10 De basislaag van het cluster (de laag onder het platform)
+Deze laag levert zelf geen productgegevens, maar wel **signalen die de beheerder nodig heeft**:
+of inkomend verkeer werkt, of certificaten worden uitgegeven, of het netwerk doet wat het moet,
+en of er genoeg capaciteit is.
+| Werkbelasting | Namespace | Gegevens die het oplevert |
+|---|---|---|
+| `traefik` (DaemonSet, één per ingress-node) | `traefik` | Inkomend verkeer per host: verzoeken, fouten (4xx/5xx), wachttijden en de routeringsregels, in het access-log op stdout (methode, pad, host, status, duur; headers en client-adres worden bewust niet gelogd). Let op: de Prometheus-metrics van Traefik staan uit (geen scraper), dus per-host-cijfers komen uit dat log, niet uit een metriek. |
+| `cert-manager`, `-cainjector`, `-webhook` (Deployments) | `cert-manager` | Certificaatuitgifte en verlengingen, inclusief mislukte uitgiftes en de resterende geldigheid per host. |
+| `cilium`, `cilium-envoy`, `cilium-operator` (DaemonSet/Deployment) | `kube-system` | Netwerkbeleid, verbindingen en doorstroming; de poortwachter tussen namespaces. |
+| `hubble-relay` + `hubble-ui` (Deployments) | `kube-system` | De netwerkobservatie (welke dienst met welke praat) op basis van Cilium. |
+| `coredns` (Deployment) | `kube-system` | Interne naamgeving; een storing hier raakt elke dienst. |
+| `metrics-server` (Deployment) | `kube-system` | De resource-meting per pod waarop de horizontale schaling steunt. |
+| `hcloud-cloud-controller-manager`, `hcloud-csi-controller`, `hcloud-csi-node` | `kube-system` | De koppeling met de machineleverancier: nodes toevoegen of verwijderen, volumes aankoppelen. |
+| `system-upgrade-controller` (Deployment) | `system-upgrade` | De automatische node-upgrades (k3s-plan): wanneer een node opnieuw opstart en met welke versie. |
+| `cluster-autoscaler` (Deployment, **0 replica's**) | `kube-system` | Staat uit; een signaal dat opschalen een bewuste, menselijke keuze is. |
+
+## B.11 De resterende taken (elk een signaal voor het paneel)
+Naast de taken uit B.4 en B.8 draaien er taken die een eigen toestand hebben en dus een eigen
+kaart verdienen. Noem ze bij naam in het ontwerp; elke taak zonder JSON-uitkomst toont het
+paneel als **taakgeschiedenis**, niet als cijfer.
+| Taak (CronJob) | Namespace | Waarom het een signaal is |
+|---|---|---|
+| `fesafoto-provision-applier` (elke minuut) | `fesafoto-system` | Rolt nieuwe tenants uit; blijft er iets hangen, dan heeft een klant betaald maar niets gekregen. |
+| `fesafoto-control-plane-reconciler` (elke 5 min) | `fesafoto-system` | Houdt de besturingskern en de pool gelijk; een achterstand is een groeiend gat. |
+| `fesafoto-control-plane-kyc-remind` (dagelijks) | `fesafoto-system` | Herinnert klanten aan hun identiteitscontrole; een groeiende lijst betekent omzet die blijft wachten. |
+| `fesafoto-retention` + `fesafoto-pool-retention` (dagelijks 03:17) | `fesafoto-system` | Ruimen media op volgens de bewaartermijn; een mislukte ronde betekent groeiende opslag én een bewaarplichtrisico. |
+| `fesafoto-pool-report-sla` (elke 5 min) | `fesafoto-system` | Meet de afgesproken verwerkingstijd; de uitkomst is een signaal over de pool. |
+| `fesafoto-mta-purge` (dagelijks) | `fesafoto-system` | Ruimt de mailwachtrij op; hoort de wachtrij niet te laten groeien. |
+| `fesafoto-agent-watch-mailer` + `fesafoto-secagent-mailer` (elke minuut) | `fesafoto-ops` | Leveren de post van de waak- en beveiligingslaan; een stilstaande mailer is een stille laan. |
+
+---
+
+# DEEL C. WELKE EXTERNE DIENSTEN WIJ VIA EEN API GEBRUIKEN
+
+Wij koppelen het paneel ook aan de diensten buiten het cluster. Voor elke dienst geldt dezelfde
+afspraak: **de sleutel blijft in het cluster, de interface toont nooit een geheim**. Het paneel
+leest en toont, en waar een actie nodig is, gaat die via onze eigen besturingskern of een eigen
+tussenlaag die de sleutel draagt.
+
+## C.1 Hetzner Cloud API (machines, netwerken, volumes, certificaten)
+- **Gegevens:** de drie nodes met hun type, locatie, status, netwerk en openbare adressen; de
+  volumes en hun koppeling; de netwerken en de firewallregels; de load balancers; de
+  certificaten; de actuele prijzen per machine en per volume.
+- **Acties:** een node herstarten, een node tijdelijk uitzetten, een volume losmaken, een
+  firewallregel toevoegen, een machine van type wisselen (resize).
+- **Inzicht:** wat kost deze maand aan machines en opslag, welke node is overbelast, welke
+  volume groeit het hardst, en welke machine kunnen we kleiner zetten als een feest voorbij is.
+- **Grens:** de sleutel (`HCLOUD_TOKEN`) leeft in het cluster; het paneel toont alleen
+  afgeleide bedragen en toestanden. Acties lopen via een bevestigingsvenster met de
+  naam van de node erin, nooit stil op de achtergrond.
+
+## C.2 Hetzner Object Storage (de opslaglaag, S3)
+- **Gegevens:** de buckets en hun inhoud: de media van de feesten, de back-ups van de
+  databases en volumes, en de images van de registry. Per bucket het aantal objecten, de
+  totale omvang, de oudste en de nieuwste, en de groei per dag.
+- **Acties:** een object laten staan of opruimen, een levensduur instellen, en een
+  back-up terugvinden. Verwijderen van media van een klant loopt nooit direct: dat gaat via
+  de bewaartermijn en de besturingskern.
+- **Inzicht:** hoeveel ruimte de media innemen, hoeveel de back-ups wegen, of de registry
+  ongemerkt groeit, en of een bucket leegloopt terwijl dat niet hoort.
+- **Grens:** de sleutels staan in een secret; het paneel toont alleen aantallen en groottes,
+  en noemt nooit een volledige objectsleutel met klantgegevens.
+
+## C.3 De hosting.nl DNS- en registrar-API (zones, records, DNSSEC)
+- **Gegevens:** de zones en alle records (A, AAAA, CNAME, MX, TXT, CAA, DKIM, SPF, DMARC), de
+  DNSSEC-stand per zone, en de registrarstatus van elk domein.
+- **Acties:** een record toevoegen of wijzigen (bijvoorbeeld het A- en AAAA-record en het
+  CAA-record van een nieuwe host), een zone laten controleren, en een domein overdragen.
+- **Inzicht:** of een nieuw feest zijn adres echt heeft (record aanwezig, certificaat
+  verstrekt), of de mailrecords (SPF, DKIM, DMARC) kloppen, en of er een domein dreigt te
+  verlopen.
+- **Grens:** dit is de enige plek waar wij DNS wijzigen; de koppeling loopt via een eigen
+  laag in de besturingskern met een eigen token. Het paneel toont de gewenste stand en de
+  werkelijke stand naast elkaar, met het verschil in gewone taal.
+
+## C.4 OpenRouter (de modelaanroepen van de agent-lanen)
+- **Gegevens:** welke modellen beschikbaar zijn, wat een aanroep kost, en het resterende
+  saldo en het verbruik per laan per dag.
+- **Acties:** een laan tijdelijk op een goedkoper model zetten, een laan pauzeren, of een
+  dagbudget verhogen.
+- **Inzicht:** hoeveel het platform deze maand aan modelaanroepen uitgeeft, welke laan het
+  meest verbruikt, en of een laan stilletjes tegen zijn plafond aanloopt.
+- **Grens:** de sleutel (`OPENROUTER_API_KEY`) staat in een secret; het paneel toont
+  verbruik en plafond, nooit de sleutel zelf. Het dagbudget per laan is de rem.
+
+## C.5 De identiteitsprovider (Dex / OIDC)
+- **Gegevens:** wie zich aanmeldt, met welke rol, vanaf welk adres, en welke koppelingen
+  (de statistiek en de beheer-interface) via de provider lopen.
+- **Acties:** een koppeling aan- of uitzetten, en een sessie intrekken.
+- **Inzicht:** of een onbekend adres zich voordoet als beheerder, en of een oude koppeling
+  nog openstaat.
+- **Grens:** de provider is de poortwachter; het paneel toont alleen de uitkomsten en noemt
+  nooit een token of een wachtwoord.
+
+## C.6 Onze eigen mailserver (beheer-API plus JMAP/IMAP)
+- **Gegevens:** postvakken en hun bezetting, de in- en uitgaande wachtrijen, de
+  bezorgstatus per bericht, de spamstatus en de DKIM/DMARC-stand van elk domein.
+- **Acties:** een postvak aanmaken of opruimen, een bericht opnieuw laten bezorgen, en een
+  domein laten herstellen.
+- **Inzicht:** of de platformmail echt aankomt (de bevestigingsmails van aanmeldingen, de
+  uitnodigingen, de herstelproeven), of er mail blijft hangen, en of er misbruik vanaf onze
+  eigen server plaatsvindt.
+- **Grens:** de beheer-API van de mailserver staat nooit direct open; hij loopt via de eigen
+  proxy op `mailbeheer.fesafotos.nl`. Het paneel toont aantallen en statussen, nooit de
+  inhoud van een postvak en nooit een wachtwoord.
+
+## C.7 De zelf-gehoste statistiek (Plausible plus ClickHouse)
+- **Gegevens:** bezoek en productevents per dag: aanmeldingen, aanmeldingen afgerond,
+  uploads, gastuploads, uitnodigingen, RSVP's, gastenboekberichten, aankopen, mislukte
+  video's, geblokkeerde uploads en meldingen. Per gebeurtenis de tenant, het oppervlak, het
+  plan en de uitkomst.
+- **Acties:** een rapport exporteren, een doel toevoegen, en een afwijking als alarm
+  instellen.
+- **Inzicht:** welk feest groeit, waar gasten afhaken, welke functie niet gebruikt wordt, en
+  of de statistiek zelf nog werkt (er loopt een kunstmatige proef langs).
+- **Grens:** de statistiek is PII-vrij en kent alleen een vaste lijst van gebeurtenissen;
+  het paneel toont geen persoonsgegevens en leest niet terug wat niet bestaat. De eigen
+  sleutel van de statistiek blijft in het cluster.
+
+## C.8 De betaalprovider (Mollie)
+- **Gegevens:** checkouts en betalingen: bedrag, valuta, status, tijdstip, terugbetalingen,
+  en de koppeling met de order en de tenant.
+- **Acties:** een betaling laten terugbetalen, een openstaande checkout laten verlopen, en
+  een mislukte betaling opnieuw aanbieden.
+- **Inzicht:** wat er deze maand is omgezet, hoeveel checkouts er worden afgebroken, en of er
+  een betaling is binnengekomen zonder dat de klant iets kreeg (het klassieke gat tussen
+  "betaald" en "actief").
+- **Grens:** het webhook-geheim en de API-sleutel staan in een secret; het paneel toont
+  bedragen en statussen. Een terugbetaling is een geldactie: die vraagt altijd een
+  bevestiging met het bedrag en de klant erbij.
+
+## C.9 De registry-API (onze eigen imagecatalogus)
+- **Gegevens:** de images en hun tags, welke tag gebouwd is, welke gescand is, welke nog niet,
+  en de omvang per image.
+- **Acties:** een oude tag opruimen, en een image als "goedgekeurd" markeren.
+- **Inzicht:** of een uitrol op een ongecontroleerde image wacht, welke images het meest
+  veranderen, en hoeveel ruimte de registry inneemt.
+- **Grens:** de registry staat achter eigen inloggegevens; het paneel toont de catalogus en de
+  tags, nooit een inloggeheim.
+
+## C.10 Onze eigen besturingskern en portaal-API
+- **Gegevens:** alles wat in Deel B onder de besturingskern en de auth-laag staat: tenants,
+  accounts, orders, vouchers, jobs, audit, domeinen, quota en ops-besluiten.
+- **Acties:** de bestaande beheeracties (een tenant opschorten, een voucher maken, een order
+  terugbetalen, een voorstel goedkeuren, de noodrem omzetten).
+- **Inzicht:** dit is de ruggengraat van het paneel; de meeste schermen lezen hier.
+- **Grens:** de portaal-API is de enige plek met rollen; elke actie loopt door die rolpoort
+  en laat een spoor achter in het auditlog.
+
+## C.11 De monitoringlaag (Prometheus en Grafana)
+- **Gegevens:** alle metriek van het cluster: CPU, geheugen, schijf, netwerk, pod-herstarten,
+  wachttijden en de toestand van elke Deployment.
+- **Acties:** een alarmregel aan- of uitzetten, een dashboard opslaan, en een stille storing
+  alsnog laten melden.
+- **Inzicht:** welke node het volst zit, welke pod het vaakst herstart, en of een dienst
+  langzamer wordt voordat hij omvalt.
+- **Grens:** de metriek is van ons; het paneel leest hem rechtstreeks en toont geen ruwe
+  PromQL aan de beheerder, maar een cijfer met een oordeel (goed, let op, mis).
+
+---
+
+# DEEL D. WELKE INZICHTEN HET PANEEL MOET GEVEN (en hoe je ze eerlijk toont)
+
+Een inzicht is pas een inzicht als het drie dingen zegt: **wat** er aan de hand is, **hoe
+zeker** je het weet, en **wat** de beheerder eraan kan doen. Verzin nooit een cijfer; als een
+bron niets meldt, toon je een eerlijke lege staat met de naam van de bron en de reden.
+
+## D.1 Gezondheid en beschikbaarheid
+- **Draait alles?** Per dienst een lampje met de laatste controle en de laatste fout. Bron: de
+  statusverzameling van de pool (die alle componenten langsgaat) en de gezondheidseindpunten
+  van de agents.
+- **Leeft elke laan nog?** Per laan de laatste ronde en de maximale leeftijd. Bron: de wakers
+  in de ops-ruimte; een laan zonder tijdstempel mag je alleen "bereikbaar" noemen, niet
+  "gezond".
+- **Zijn de certificaten nog geldig?** Per host de vervaldatum en de dagen die resteren.
+  Bron: de certificaatlijst van de cluster-agent.
+- **Is de keten nog gezond?** Per ronde van de bouw- en uitrolketen of hij geslaagd is.
+  Bron: de bouw-, scan- en uitroltaken.
+
+## D.2 Capaciteit en kosten
+- **Wat kost het?** Machines, volumes, opslag, modelaanroepen en betalingen bij elkaar, per
+  maand en per dag. Bron: de prijzen van de machineleverancier, de volumegroottes, het
+  modelsaldo en de orders.
+- **Waar groeit het?** Per volume en per bucket de groeisnelheid en het aantal dagen tot vol.
+  Bron: de opslagmetriek en de bucketinhoud.
+- **Wat levert een feest op?** Per feest de opbrengst (orders, extra's) tegenover het verbruik
+  (media, video's, modelaanroepen). Bron: de orders en de media-tellers.
+- **Wat kunnen we kleiner zetten?** Nodes en volumes die structureel onderbenut zijn, met het
+  bedrag dat dat scheelt. Bron: de metriek en de machineprijzen.
+
+## D.3 Gedrag van feesten en gasten
+- **Hoe loopt een feest?** Een tijdlijn per feest: aanmeldingen, eerste upload, piek, laatste
+  upload, aantal gasten, aantal foto's, aantal video's. Bron: de productevents en de
+  media-tellers.
+- **Waar haken gasten af?** Van scannen naar aanmelden naar uploaden naar terugkijken, met het
+  verlies per stap. Bron: de productevents met hun vaste namen.
+- **Wat doen de gasten?** Uitnodigingen verstuurd en beantwoord, gastenboekberichten,
+  meldingen en moderatie. Bron: de gasten- en uitnodigingstellingen en de moderatiewachtrij.
+- **Wat gebeurt er op de muur?** Beamer-acties en vertoningen per feest. Bron: de
+  beamer-status en de vertoningsgebeurtenissen.
+
+## D.4 Mailbezorging
+- **Komt de mail aan?** Per soort (aanmelding, uitnodiging, herstelproef, melding) het aantal
+  verzonden, bezorgd en mislukt. Bron: de mailkoppeling in de besturingskern en de
+  mailserver.
+- **Blijft er iets hangen?** De wachtrij met onbezorgde berichten en de dood-brieven-map.
+  Bron: de mailwachtrij-opdrachten en de dood-brieven-map.
+- **Klopt de mailtechniek?** SPF, DKIM en DMARC per domein. Bron: de DNS-koppeling en de
+  domeinstatus van de besturingskern.
+
+## D.5 Back-up- en herstelstatus
+- **Is de laatste back-up gelukt?** Tijdstip, omvang en duur, per laag (etcd, restic,
+  manifest). Bron: de back-uptaken en de back-upstaat.
+- **Werkt terugzetten nog?** De uitkomst van de laatste herstelproef met de aantallen die
+  gecontroleerd zijn. Bron: de herstelproef en zijn status.
+- **Hoeveel dagen kunnen we terug?** De oudste en de nieuwste beschikbare snapshot. Bron: de
+  back-upcatalogus.
+
+## D.6 Veiligheidspostuur
+- **Wat staat er open?** Bevindingen in de tien controlegroepen, gesorteerd op ernst en
+  ouderdom. Bron: de beveiligingslaan.
+- **Wat is er recent bijgekomen of verdwenen?** De beweging per dag. Bron: het
+  bevindingenregister en het audittrail van de waaklaan.
+- **Wachten er meldingen op een mens?** De moderatie- en meldwachtrij met de oudste wachttijd.
+  Bron: de moderatie- en meldingsaggregaten en de melding-triage.
+- **Is er misbruik?** Meldingen, apparaatverboden en juridische verzoeken. Bron: de
+  vertrouwens- en veiligheidsgegevens van de besturingskern.
+
+## D.7 Ketengezondheid
+- **Is de keten heel?** Per ronde van bouwen, scannen, uitrollen en terugschrijven of hij
+  geslaagd is, hoe lang hij deed en of er is teruggerold. Bron: de ketentaken en de registry.
+- **Wacht een uitrol op een scan?** Welke image-tag nog niet gescand is. Bron: de registry-tags.
+- **Is de uitgaande weg open?** Per node of de uitgaande weg werkt. Bron: de netwerkproef.
+- **Wordt een dienst langzamer of foutgevoeliger?** Per dienst en per route de latentie en het
+  foutpercentage. Bron: de sporen van de geinstrumenteerde diensten; zonder sporen eerlijk
+  "niet gemeten".
+
+## D.8 Agentautonomie
+- **Wat doen de agents?** Per laan: rondes vandaag, modelaanroepen, laatste ronde, laatste
+  post, opeenvolgende fouten, en of de rem aan staat. Bron: de rem- en
+  gezondheidseindpunten.
+- **Waar wachten zij op een mens?** Open voorstellen en concept-incidenten, met hun leeftijd
+  en hun vervaldatum. Bron: de voorstellen en incidenten van de lanen en het
+  besluitenregister.
+- **Wat is er goedgekeurd en toegepast?** De reeks besluiten met hun uitkomst, hun rooktest en
+  hun terugrolpad. Bron: het besluitenregister en de applier.
+
+---
+
+# DEEL E. WELKE FUNCTIES EN FEATURES HET PANEEL KRIJGT (diepe integraties, per stuk concreet)
+
+Dit is de kern van de opdracht. Elke functie noemt: **het scherm**, **de kaart**, **de
+gegevens** en **de actie**. Ontwerp ze zo dat signalen over de oppervlakken heen worden
+gecombineerd: een stijgende wachttijd is pas interessant als je hem naast het aantal
+gasten, de videowachtrij en het node-geheugen legt.
+
+## E.1 Het overzichtsscherm ("Vandaag")
+Eén scherm dat de beheerder 's ochtends als eerste opent.
+- **Bovenaan een strook met zes toestandslampjes:** publieke diensten, agents, keten, mail,
+  back-up, uitgaande weg. Elk lampje heeft een kleur met een **tekst**, nooit kleur alleen, en
+  klikt door naar het detail.
+- **Daaronder een rij sleutelcijfers:** open kritieke bevindingen, wachtende goedkeuringen,
+  oudste wachttijd in de moderatie, omzet deze maand, uitstaande betalingen, ruimte in de
+  opslag. Elk cijfer toont zijn peildatum en een vergelijking met gisteren.
+- **Een tijdlijn van 24 uur:** per uur de gebeurtenissen die het platform zelf belangrijk
+  vond (een incident, een escalatie, een mislukte ronde, een terugbetaling, een nieuwe
+  tenant). Bron: het audittrail, de bevindingen, de ketentaken en de mails.
+- **Een blok "wacht op een mens":** elke open voorstelling, elk concept-incident en elk
+  verzoek, met een knop "bekijken" en "goedkeuren" of "afwijzen". Dit is de enige plek waar de
+  beheerder met één klik iets goedkeurt, en elke klik vraagt een tweede bevestiging met de
+  doelnaam erin.
+
+## E.2 Het cluster- en capaciteitsscherm
+- **Node-kaarten (drie):** per node de CPU- en geheugenbelasting, de schijf, het aantal pods,
+  de status, het machinetype, de prijs per maand, en een schuif met "wat als ik hem resize".
+  Bron: de metriek, de machinetype-gegevens en de prijzen.
+- **Volumekaarten:** per volume de gebruikte ruimte, de eigenaar (welke pod), de
+  koppelingsstand en de groeisnelheid met "vol over N dagen". Bron: de volumemetriek.
+- **Opslagkaarten:** per bucket het aantal objecten, de omvang en de groei. Bron: de
+  bucketinhoud.
+- **Kostenstrook:** machines, volumes, opslag, modelaanroepen en mailkosten naast elkaar, met
+  de maandtotaalstand en de projectie naar het einde van de maand. Bron: de prijzen, het
+  modelsaldo en de orders.
+- **Capaciteitsadvies:** een kaart die, als een node of een volume structureel onderbenut is,
+  een besparing voorstelt met het bedrag en de gevolgen. Dit is een **voorstel**, geen actie:
+  de beheerder keurt goed en de applier voert uit.
+- **Latentie- en foutkaart per dienst:** per dienst en per route de latentieverdeling en het
+  foutpercentage, met dezelfde band als de andere grafieken. Bron: de sporen (spans) van de
+  geinstrumenteerde diensten via de OTLP-ontvanger; voor een dienst zonder sporen toont de kaart
+  "niet gemeten" met de naam van de dienst, geen nul.
+
+## E.3 Het feestschets-scherm (per tenant)
+- **Een kop met de feestnaam, het adres, de datum, het plan en de status.**
+- **Een tijdlijn van het feest:** van aanmelding tot laatste upload, met de pieken en de
+  dalen. Bron: de productevents en de dagreeksen.
+- **Mediakaarten:** foto's, video's, video-seconden, de puntenstand en het quotum met een
+  voortgangsbalk. Bron: de media-tellers en de quota.
+- **Gastenkaarten:** uitgenodigd, beantwoord, komt wel/niet, en de verhouding. Bron: de
+  uitnodigings- en gastentellingen.
+- **Videowachtrij:** hoeveel video's wachten, hoe lang al, en of er iets in quarantaine zit.
+  Bron: de transcode-wachtrij.
+- **Opbrengstkaart:** orders en extra's van dit feest, met de betaalstatus. Bron: de orders.
+- **Acties:** opschorten, bewaren verlengen, quota verhogen, en een terugbetaling aanvragen
+  (met bevestiging).
+
+## E.4 Het signalen- en afwijkingsscherm (de diepe integratie)
+Dit scherm combineert signalen die los onschuldig zijn.
+- **Een kaart "afwijkingen vandaag":** een reeks korte regels als "uploads op feest X zijn
+  70% lager dan het gemiddelde van de laatste 7 dagen", "de videowachtrij groeit terwijl het
+  node-geheugen krimpt", "de mailbezorging naar domein Y is gezakt sinds 14:00", "een agent
+  heeft drie rondes op rij niets gemeld". Elke regel toont de **zekerheid** (hoeveel dagen,
+  hoeveel gegevens) en klikt door naar de onderliggende grafiek.
+- **Een kaart "patronen":** dezelfde signalen over een langere periode, met een band
+  (verwacht, let op, afwijkend) en de richting (stijgt, daalt, vlak).
+- **Een kaart "voorspellingen":** drie tot vijf korte voorspellingen met hun horizon en hun
+  aanname: wanneer raakt een volume vol, wanneer loopt een modelbudget leeg, hoeveel
+  moderatie-items komen er de komende 24 uur bij als het zo doorgaat. Toon altijd de aanname
+  en nooit een cijfer zonder de band.
+- **Een kaart "kosten per feest":** de opbrengst en het verbruik naast elkaar, met een
+  oordeel (verdient, quitte, kost geld), en de vraag "wil je dit feest laten doorlopen of
+  afronden".
+
+## E.5 Het agentscherm (de lanen en hun autonomie)
+- **Per laan een kaart:** de naam, de rol in één zin, het laatste rondetijdstip, de
+  modelaanroepen vandaag tegen het plafond, het aantal open en kritieke bevindingen, en de
+  rem-stand met een knop "pauzeren" en "hervatten". Bron: het gezondheids- en rem-eindpunt
+  van elke laan.
+- **Een tabel met open bevindingen over alle lanen:** ernst, ouderdom, kanaal, en de
+  bronregel. Sorteerbaar en filterbaar.
+- **Een tabel met open voorstellen:** titel, doel, categorie (routine, ge-past, spoed),
+  vervaldatum, en de twee knoppen "goedkeuren" en "afwijzen". Bij openen zie je de patch, het
+  terugrolpad, de rooktest en het bewijs in gewone taal. Bron: de voorstellen van de lanen en
+  het besluitenregister.
+- **Een tijdlijn per incident:** van de eerste bevinding tot het besluit en de uitkomst, met
+  wie wat wanneer deed. Bron: het bevindingenregister, de besluiten en de uitkomsten.
+- **Een kaart "agentverbruik":** per laan het verbruik per dag tegen het budget, met een
+  waarschuwing bij 80%. Bron: het modelsaldo en de remgegevens.
+
+## E.6 Het ketenscherm (bouwen, scannen, uitrollen)
+- **Een tijdlijn van de keten:** per ronde bouwen, scannen en uitrollen, met
+  de duur en de uitkomst. Bron: de ketentaken.
+- **Een tabel met images:** tag, gebouwd, gescand, uitgerold, omvang, en de laatste
+  wijziging. Bron: de registry en de ketentaken.
+- **Een kaart "uitrolwachters":** images die wachten op een scan of op een goedkeuring, en de
+  laatste terugrol met zijn reden. Bron: de registry-tags en de uitroltaken.
+- **Een kaart "ketenrisico":** een uitrol die op een ongecontroleerde image wacht, of een
+  scan die al te lang niet gelopen heeft. Bron: de ketentaken en de registry.
+
+## E.7 Het mailscherm
+- **Een kaart "bezorging vandaag":** verzonden, bezorgd, mislukt, en de wachtrij, per soort.
+  Bron: de mailkoppeling en de mailserver.
+- **Een tabel met vastgelopen berichten:** ontvanger, onderwerp, laatste poging, reden, en de
+  knop "opnieuw". Bron: de mailwachtrij-opdrachten en de dood-brieven-map.
+- **Een kaart "mailtechniek":** SPF, DKIM en DMARC per domein met hun stand. Bron: de
+  DNS-koppeling en de domeinstatus.
+- **Een kaart "misbruik":** uitgaand verkeer dat op spam lijkt, en de betrokken postvakken.
+  Bron: de mailserver.
+
+## E.8 Het back-up- en herstelscherm
+- **Een kaart "laatste back-up":** per laag het tijdstip, de omvang en de duur, en of het
+  gelukt is. Bron: de back-uptaken.
+- **Een kaart "herstelproef":** de datum, de uitkomst, de gecontroleerde aantallen en de
+  link naar het verslag. Bron: de herstelproef.
+- **Een kaart "bewaarvenster":** de oudste en de nieuwste snapshot, en het aantal dagen dat we
+  terug kunnen. Bron: de back-upcatalogus.
+- **Een knop "nieuwe herstelproef aanvragen"** die een voorstel maakt in plaats van direct
+  iets te doen. Bron: de voorstellen van de cluster-agent.
+
+## E.9 Het veiligheidsscherm
+- **Een kaart "postuur":** het aantal bevindingen per controlegroep, met de beweging per dag.
+  Bron: de beveiligingslaan.
+- **Een kaart "open kritiek":** de kritieke bevindingen met hun ouderdom en hun doel. Bron:
+  de beveiligingslaan.
+- **Een kaart "meldingen":** de moderatie- en meldwachtrij met de oudste wachttijd en de
+  termijnen die bijna verlopen. Bron: de waaklaan en de poolaggregaten.
+- **Een kaart "vertrouwen en veiligheid":** meldingen, apparaatverboden en juridische
+  verzoeken met hun stand. Bron: de besturingskern.
+- **Acties:** een melding beslissen, een apparaat verbieden of vrijgeven, en een juridische
+  houding plaatsen of opheffen. Alles met bevestiging en met een spoor in het auditlog.
+
+## E.10 Het geldscherm
+- **Een kaart "omzet deze maand":** betaalde orders, openstaande checkouts, terugbetalingen
+  en mislukte betalingen. Bron: de orders en de betaalprovider.
+- **Een kaart "gat tussen betalen en leveren":** orders die betaald zijn maar nog niet
+  geleverd (het klassieke gat), met de oudste eerst. Bron: de orders en de levensloop van de
+  tenant.
+- **Een tabel met betalingen:** klant, bedrag, status, tijdstip, en de knop "terugbetalen" met
+  bevestiging. Bron: de betaalprovider en de besturingskern.
+- **Een kaart "vouchers":** uitgegeven, gebruikt, verlopen, en hun effect op de omzet. Bron:
+  de besturingskern.
+
+## E.11 De schermen voor niet-technische rollen
+- **Zaalbeheer (venue):** alleen het eigen feest, de beamer-bediening, en de status van de
+  eigen media. Geen clustergegevens, geen bevindingen.
+- **Support:** het feest van de klant, de gasten, de uitnodigingen, en de mailbezorging van
+  dat feest. Geen clustergegevens.
+- **Alleen-lezen:** dezelfde schermen zonder de actieknoppen.
+Ontwerp de rolwissel zo dat een verkeerde rol nooit per ongeluk een actieknop ziet.
+
+## E.12 Diepe integraties over de schermen heen (de kern van de opdracht)
+Ontwerp minstens deze verbindingen expliciet, zodat de beheerder ze kan volgen:
+1. **Signaal → oorzaak → actie:** klik op een afwijking en zie de keten eronder (welke node,
+   welke pod, welke taak, welke tenant) met de voorgestelde actie.
+2. **Kosten → gedrag:** klik op een feest in de kostenkaart en zie zijn tijdlijn en zijn
+   mediagebruik.
+3. **Agent → bevinding → voorstel → besluit → uitkomst:** één doorlopende tijdlijn per
+   voorstel, met het terugrolpad altijd zichtbaar.
+4. **Mail → klant → feest:** klik op een vastgelopen bevestigingsmail en zie om welke
+   aanmelding en welk feest het gaat.
+5. **Ketengezondheid → uitrol → feest:** klik op een terugrol en zie welk feest daar last van
+   had, en of het al hersteld is.
+6. **Capaciteit → voorspelling → besparing:** klik op een vol volume en zie de
+   groeisnelheid, de voorspelling en de voorgestelde opruiming of verhoging.
+
+---
+
+# DEEL F. DE GRENZEN DIE HET ONTWERP MOET RESPECTEREN
+
+Dit zijn harde eisen. Ontwerp niets dat ze breekt, ook niet als het mooier zou zijn.
+
+## F.1 Huisstijl en bouwstenen
+- **Eigen tokens en eigen fonts.** Gebruik de bestaande tokenlaag van het beheerpaneel: de
+  kleuren, de ruimtes, de afrondingen, de beweging en de typografie staan al vast in twee
+  kleurblokken (licht en donker). Verzin geen nieuwe kleuren en gebruik geen losse kleurcodes
+  of RGB-waarden buiten die blokken. De fonts zijn de bestaande huisstijlfonts.
+- **Eigen componenten.** Gebruik de bestaande bouwstenen (kaarten, tabellen, vensters,
+  grafieken, rolkaarten) en breid ze uit waar nodig. Voeg geen externe componentbibliotheek
+  toe.
+- **Geen nieuwe afhankelijkheden.** Het ontwerp moet werken met de bestaande drie
+  runtime-afhankelijkheden (React, React-DOM en de router). Iconen teken je als eigen
+  inline-vector met een vaste lijndikte; gebruik geen iconenpakket.
+- **Donkere modus.** Ontwerp elk scherm in licht en donker.
+- **Laad- en foutstaten.** Elk scherm heeft een skeletstand tijdens het laden en een
+  nette foutstaat met een knop "opnieuw proberen". Nooit een leeg scherm.
+
+## F.2 Rollen en routes
+- **Bestaand rollenmodel.** De rollen zijn admin, tenant-manager, support, readonly, venue en
+  system. Elke kaart en elke actie respecteert de rol; de server blijft de enige
+  autorisatiebron, het ontwerp spiegelt die regels alleen.
+- **Bestaande routes.** De bestaande adressen blijven werken. Nieuwe schermen krijgen een
+  eigen adres in de bestaande stijl, zonder een bestaand adres te verplaatsen.
+- **De gasten- en fotograafkant niet raken.** Het ontwerp gaat alleen over het beheerpaneel.
+
+## F.3 Taal en toegankelijkheid
+- **Tweetalig.** Elk scherm in het Nederlands en het Engels. Geen tekst hard in een component.
+- **Toegankelijkheid.** Minimaal WCAG 2.1 AA: contrast, toetsenbordnavigatie,
+  schermlezerlabels, focuszichtbaarheid, en geen informatie die alleen door kleur wordt
+  gedragen. Status is altijd kleur **plus** tekst.
+- **Aanraakvlakken.** Alles werkt op een telefoon, een tablet en een groot scherm; tabellen
+  worden op smalle schermen kaarten.
+
+## F.4 Eerlijkheid en privacy
+- **Geen verzonnen cijfers.** Elk getal in het ontwerp moet uit een bron in Deel B of Deel C
+  komen. Waar geen bron bestaat, toon je een eerlijke lege staat met de naam van de bron en
+  de reden, in plaats van een nul of een voorbeeldgetal.
+- **Geen geheimen in de interface.** Nooit een sleutel, een token, een wachtwoord, een
+  webhook-geheim of een volledige klantidentificatie. Toon alleen afgeleide toestanden.
+- **Geen persoonsgegevens in aggregaten.** Gasttellingen zijn tellingen; namen, adressen en
+  tokens blijven weg. Meldingen tonen een reden en een aantal apparaten, nooit de inhoud.
+- **Eerlijke statussen.** Onderscheid "gezond", "let op", "kapot" en "onbekend". "Onbekend"
+  is een geldige stand; verberg hem niet.
+- **Tijdstempels met hun tijdzone.** Toon altijd de tijdzone waarin het cijfer geldt.
+
+## F.5 Ontwerpkwaliteit
+- **Elke kaart heeft een peildatum** en een klik-verder-pad.
+- **Elke actie heeft een bevestiging** met het doel erin, en een terugrolpad of een duidelijke
+  "dit kan niet terug" als dat zo is.
+- **Elke lege staat is ontworpen** en vertelt wat er zou moeten staan.
+- **Elke grafiek heeft een band of een vergelijking**, nooit een losse lijn zonder context.
+- **Geen nep-drukte.** Toon geen cijfers die niemand kan onderbouwen; liever een kleinere
+  kaart die klopt dan een grote die liegt.
+
+---
+
+# DEEL G. DE GEWENSTE UITVOER
+
+Lever het ontwerp in dezelfde vorm als het eerdere ontwerp (`fesafototmp`), zodat wij het
+direct kunnen overnemen:
+
+1. **Een React-project met Tailwind**, opgesplitst in bestanden: een schil met navigatie, en
+   per scherm een eigen bestand. Gebruik eigen componenten en eigen tokens; geen externe
+   bibliotheken.
+2. **Een volledige invulling van elk scherm uit Deel E**, met alle kaarten, tabellen,
+   grafieken, filters, vensters en staten (leeg, laden, fout, geen rechten).
+3. **Mock-data die de vorm van onze echte antwoorden volgt**, met dezelfde veldnamen als in
+   Deel B en Deel C, zodat wij ze een-op-een kunnen vervangen. Zet de mock-data in een apart
+   bestand per scherm.
+4. **Licht en donker**, tweetalig (NL/EN), en werkend op telefoon, tablet en groot scherm.
+5. **Een korte toelichting per scherm**: welke bron het gebruikt (uit Deel B of Deel C), welke
+   velden het nodig heeft, en wat er nog niet bestaat (zodat wij weten wat we moeten bouwen).
+6. **Geen echte sleutels, geen echte klantgegevens, geen echte bedragen.** Alles wat op een
+   geheim lijkt, is een duidelijk gemarkeerde plaatshouder.
+
+Begin met een korte inhoudsopgave van de schermen die je gaat bouwen, en bouw ze daarna één
+voor één volledig uit. Als je een scherm uit Deel E niet kunt vullen omdat de bron ontbreekt,
+bouw je het scherm toch, met een eerlijke lege staat en de naam van de bron die zou moeten
+komen.
+```
+
+---
+
+## 3. Onderbouwing: waar elke belofte vandaan komt
+
+Elke regel in de prompt is nagerekend tegen de repo (de manifesten in `k8s/`, de code en de
+runbooks in `docs/infra/`) en tegen een read-only uitlezing van het cluster op 2026-10-21.
+Hieronder per onderdeel de werkbelasting, de bron en de plek.
+
+### 3.1 Het cluster zelf
+- **Drie nodes, k3s v1.36.5+k3s1, alle control-plane+etcd:** `kubectl get nodes` →
+  `fesafotos-node-1/2/3`, `v1.36.5+k3s1`, rollen `control-plane,etcd`.
+- **Opslagklasse `hcloud-volumes` (csi.hetzner.cloud, ReadWriteOnce):** `kubectl get sc`.
+- **Ingress via Traefik, certificaten via één ClusterIssuer `letsencrypt-fesafoto`:** `kubectl
+  get clusterissuer` → `letsencrypt-fesafoto True`; de manifesten `k8s/19-traefik.yaml`,
+  `k8s/20-certmanager.yaml`, `k8s/45-wildcard-cert.yaml`, `k8s/46-wildcard-ingress.yaml`.
+- **Er is géén Service van het type `LoadBalancer`:** `kubectl get svc -A` toont alleen
+  `ClusterIP` en `None` (servicelb staat uit); Traefik draait met hostNetwork op de
+  ingress-nodes en levert op de node-poorten 80/443. De publieke ingang is wel een echte
+  **Hetzner Cloud Load Balancer** (`fesafotos-web`) die TCP naar de privé-IP's van de
+  ingress-nodes stuurt: dat is een Hetzner-resource buiten `k8s/`, geen k8s-object. Zie
+  `docs/infra/INGRESS-LOADBALANCER.md`. De "load balancers" in Deel C.1 zijn dus een
+  API-oppervlak dat wij werkelijk gebruiken; het paneel leest hem, de supervisor beheert hem.
+
+### 3.2 De publieke diensten en hun poorten
+- **`fesafoto-pool`** (namespace `fesafoto-system`): `/healthz` (`pool/server.js:6805`),
+  publieke status `/api/status` (`pool/server.js:6813`, geredigeerd), volledige snapshot
+  `/api/internal/status` (`:6825`), handmatige incidenten (`:6837`), cache legen (`:6857`),
+  transcode-wachtrij resetten (`:6872`), beamer-status (`:6886`), stuck-uploads (`:6909`,
+  `:6944`), tenant-feiten (`:6978`), gast-media (`:6987`), watch-summary (`:7003`,
+  `x-watch-token`), melding-triage (`:7029`, `x-triage-token`), trends (`:7062`),
+  photographer-status (`:7828`), identity-stats (`:7847`), guest-stats (`:7856`),
+  moderatie-queue (`:7883`), moderatie-media (`:7915`), moderatie-voorstellen (`:7947`),
+  chase-leeslijst (`:7974`), trust-safety (`:7992`, `:9084`), melding-miniatuur (`:8069`),
+  AVG-exportbron (`:8104`). Tenant-host-tellingen: afterparty-stats (`:8271`), organisator
+  (`:8287`), meldingen (`:8390`), apparaatverboden (`:8463`), uitnodigingen (`:5713`),
+  ingest (`:7444`), gastenmuur (`:7678`), gastenboek (`:7697`), beamer (`:7739`), "mijn"
+  (`:8162`).
+- **Statuspayload-vorm** (`pool/status.js:426-477`): `{status, checked_at, components:[{name,
+  label,status,latency_ms,detail?}], incidents}`, met componenten pool/transcode/convert/
+  control-plane/auth/mta/webmail/site/storage/dns/ingress/public/registry/analytics/
+  analytics-db; de publieke variant levert alleen `{name,status}` (`:515`).
+- **`fesafoto-control-plane`** (namespace `fesafoto-system`): route-registratie
+  `control-plane/server.js:393` (`const routes = []`) + `route(method, pattern, handler)`
+  (`:394`); dispatch en rolpoort `:149` (`opsModuleFor`); speciale paden voor pipeline-token
+  (`:2935`), mail/lang-feedback (`:2951`), Mollie-webhook (`:2965`), partner-Bearer (`:3019`,
+  `:3053`), `x-ops-token` (`:3082`) en het portaal (`:3100`). `/healthz` `:451`. De volledige
+  routetabel staat in `control-plane/server.js` zelf.
+- **`fesafoto-auth`** (namespace `fesafoto-system`): de portaal-API `auth/admin.js` met het
+  rollenmodel `rolesOf`/`hasRole` (`auth/admin.js:790`) en `canMutate` (`:794`); SPA-servering
+  `auth/server.js:1065-1131` en `:2898-2924`; de beheer-API-paden staan in `auth/admin.js`.
+- **`fesafoto-site`, `fesafoto-api`, `fesafoto-webmail`, `stalwart`, `mta-admin-proxy`:**
+  `kubectl get deploy -A` toont `fesafoto-site`/`fesafoto-api` in `fesafoto`,
+  `fesafoto-webmail`/`stalwart`/`mta-admin-proxy` in `fesafoto-system`; manifesten
+  `k8s/10-site.yaml`, `k8s/11-api.yaml`, `k8s/15-mta.yaml`, `k8s/17-webmail.yaml`.
+
+### 3.3 De media- en verwerkingslaag
+- **`fesafoto-transcode`** (`k8s/24-transcode.yaml`, namespace `fesafoto-system`): de
+  systeembrede wachtrij `pool/jobs.js` `transcode_jobs` (`:61`) met statussen
+  `queued/processing/done/failed/quarantined`, `counts()` (`:240`), `recentDone()` (`:254`),
+  `trendRows()` (`:268`); interne routes `pool/server.js:6872` (reset-queue) en de
+  moderatie-queue (`:7883`).
+- **`fesafoto-image-convert`** (`k8s/25-image-convert.yaml`).
+- **`fesafoto-photobooth-ingest`** (`k8s/58-photobooth-ingest.yaml`; `POST /api/internal/ingest`
+  `pool/server.js:7100`; JMAP van de mailserver als bron).
+
+### 3.4 De agent-lanen
+Bron: de manifesten in `k8s/` en de code onder `cluster-agent/`, `security-agent/`,
+`agent-watch/`, `agent/` en `pidurable/`, plus de live gezondheidsantwoorden hieronder.
+- **`fesafoto-cluster-agent`** (`k8s/41-cluster-agent.yaml`), poort 8091: `/health`
+  `cluster-agent/lib/server.js:91-115` (payload `status, component, conversation, model,
+  uptimeS, guard{killSwitch, callsToday, maxCallsPerDay, day, lastRoundAt, lastLlmAt},
+  findings{open, critical, escalated, total, lastScanAt}`); `/guard` `:230-248`;
+  `/findings` `:117`; `/proposals` `:133`; `/proposals/:id` `:158`; `/incidents` `:187`;
+  `/ops-status` `:191`; `/logs` `:207`; `/certificates` `:223`; alle niet-GET is 405 (`:83-89`).
+  Remregister `cluster-agent/lib/guard.js:30-52`; kill switch `CLUSTER_AGENT_ENABLED`
+  (`k8s/41-cluster-agent.yaml:157-158`).
+- **`fesafoto-security-agent`** (`k8s/26-secagent.yaml`), poort 8090: `/health`
+  `security-agent/lib/server.js:87-113`; `/guard` `:179-197`; tien controlegroepen
+  `security-agent/lib/control-groups.js:19-90` (`auth, authz, headers, tls, secrets, cluster,
+  images, network, audit, surface`); `/groups` `:114-128`; kill switch `SECURITY_AGENT_ENABLED`
+  (`k8s/26-secagent.yaml:129-130`).
+- **`fesafoto-agent-watch`** (`k8s/47-agent-watch.yaml`), poort 8092: `/health`
+  `agent-watch/lib/server.js:77-101`; `/guard` `:151-169`; `/audit` `:170-177` (alleen-toevoegen,
+  ≤500 regels); meet hardingssuites en de gast- en moderatieaggregaten met eigen leestokens
+  (`agent-watch/lib/surfaces.js:24-55`); drempels `agent-watch/lib/config.js:188-195`.
+- **`fesafoto-agent`** (`k8s/25-agent.yaml`), poort 8085: `/healthz` `agent/server.cjs:253-255`
+  (`{ok:true, lane}`); `/watch/abuse-summary`; gesprekken en suggesties `:246-331`; kill switch
+  `AGENT_LANE_ENABLED` (`k8s/25-agent.yaml:121-122`).
+- **`fesafoto-pidurable-agent`** (`k8s/25-pidurable-agent.yaml`), poort 8090: `/health`
+  `pidurable/lib/health.js:49-68` (`{status, component, storage, conversation, model, uptimeS}`,
+  géén tijdstempel); de dagelijkse ops-digest en de 15-minutentriage (`pidurable/lib/
+  ops-digest-task.js`, `pidurable/lib/report-triage-task.js`); triagebron
+  `GET /api/internal/report-triage` (`pool/server.js:7029-7061`).
+- **Live antwoorden op 2026-10-21 ~20:20 UTC** (read-only, via `kubectl exec ... wget`):
+  - cluster-agent: `{"status":"ok","component":"fesafoto-cluster-agent","guard":{"killSwitch":
+    false,"callsToday":74,"maxCallsPerDay":200,"day":"2026-10-21"},"findings":{"open":23,
+    "critical":2,"escalated":2,"total":289,"lastScanAt":"2026-10-21T19:54:11.269Z"}}`.
+  - security-agent: `{"status":"ok","component":"fesafoto-security-agent","guard":{"callsToday":
+    6,"maxCallsPerDay":100},"findings":{"open":78,"critical":23,"escalated":23,"total":88,
+    "lastScanAt":"2026-10-21T20:16:53.170Z"}}`.
+  - pidurable: `{"status":"ok","component":"pidurable-agent","storage":"/data/agent.sqlite",
+    "uptimeS":6527}`.
+  - agent: `{"ok":true,"lane":"enabled"}`.
+  - **agent-watch: tijdens de inventarisatie stond de pod even op `0/1 Running` met 4
+    herstarts en een falende gereedheidsproef** (`kubectl get pods -l
+    app.kubernetes.io/name=fesafoto-agent-watch`); bij het afronden was de deployment weer
+    `1/1` (`kubectl get deploy`). Dat is precies het soort korte storing dat het paneel hoort te
+    tonen (zie E.1/E.5), en het bewijst waarom "laatste ronde" en "gereedheid" twee aparte
+    statussen zijn.
+- **Het remregister `k8s/agent-autonomy.json`** is machineleesbaar en wordt tegen de
+  manifesten gecontroleerd (`k8s/check.py` sectie 37): per laan de kill-switch-omgevingsvariabele,
+  het budget, de levensproef, het escalatiekanaal en de beslissingsgezinnen. Dit is de canonieke
+  lanenlijst en de bron voor de "wat mag deze laan zelf"-kaart in E.5.
+
+### 3.5 De ops-ruimte (de wakers)
+- **`fesafoto-ops-deadman`** (`k8s/43-ops-deadman.yaml`, elk uur): `OPS_LIVENESS_TARGETS`
+  (`control-plane/ops-deadman.js:75-98`), live waarde in het manifest `:120-126`
+  (agent-watch/security-agent/cluster-agent @45 min, agent-lane @0, pidurable @0); toestanden
+  `unreachable/unreadable/stale/no_timestamp` (`:145-163,205-208`); laatste-tijdstempel-extractie
+  `:105-116`; ontdubbeling per uur `:208,238-241`; mail via `mail.js` (`:230-237`); de rem-stand
+  "disabled" is bewust stil en mailt niet (`:205-208`).
+- **`fesafoto-ops-mailer`** (`k8s/42-ops-mailer.yaml`, elke minuut): postbus `post/` →
+  `post-sent/`; postvorm `cluster-agent/lib/postbox.js:53-97`, ontdubbeling = bestandsnaam =
+  `idemKey` (`:27-29`); mail via `control-plane/mail.js`.
+- **`fesafoto-ops-applier`** (`k8s/44-ops-applier.yaml`, elke minuut): leest
+  `GET /api/ops/decisions?status=pending` (`control-plane/ops-apply.js:281-286`), poorten op
+  actie/besluit/verval/hash (`:333-363`), server-side apply met veldbeheerder
+  `fesafoto-ops-applier`, uitkomst via `POST /api/ops/decisions/:id/outcome` (`:270-278`).
+  Rollen: per-namespace Roles, geen ClusterRole, geen secrets, geen delete.
+- **`fesafoto-egress-canary`** (`k8s/49-egress-canary.yaml`, DaemonSet, elke 600 s):
+  `k8s/49-egress-canary-configmap.yaml:88-142` test `ghcr.io/v2/` (401),
+  `api.hetzner.cloud/` (404), `fsn1.your-objectstorage.com/` (200) en
+  `openrouter.ai/api/v1/models` (200 + `"data"`); een fout laat de pod herstarten en de
+  cluster-agent maakt een kritieke bevinding `egress_canary_failed` per node.
+- **`fesafoto-openrouter-credit`** (`k8s/59-openrouter-credit.yaml`, elk uur op minuut 17):
+  `control-plane/credit-watch.js` leest `/credits` en `/keys`; drempels `CREDIT_DREMPEL=25`,
+  `CREDIT_MAANDBEDRAG=20` (`:124-127`); waarschuwing in `post/`
+  (`openrouter-<soort>-<datum>.json`, één per dag per soort).
+- **`fesafoto-restore-drill`** (`k8s/46-restore-drill.yaml`, elk kwartaal `0 5 1 1,4,7,10 *`):
+  containers `drill` (`scripts/restore-drill.sh`) en `notify` (`control-plane/
+  ops-drill-notify.js`); zet de laatste restic-snapshot terug in een schone `emptyDir`,
+  controleert elke SQLite (`PRAGMA integrity_check`, `:206-215`), elke tenant-ingress en elk
+  certificaat (`:221-239`), en vergelijkt de boom met de bron (`:241-316`); bewijs in
+  `/out/drill.log`, `/out/rc`, `/out/done`; de notify-container mailt en schrijft de status
+  `{source, at, result, summary, counts}` naar ConfigMap `fesafoto-ops-status` key
+  `restore-drill` (`:142-166,187-228`); de cluster-agent leest die ConfigMap
+  (`cluster-agent/lib/housekeeping.js:69-87`) en maakt van een FAIL een kritieke bevinding.
+
+### 3.6 De bouw- en uitrolketen
+- **`fesafoto-registry`** (`k8s/32-registry.yaml`, namespace `fesafoto-build`, 2 replica's):
+  poort 5000, TLS, htpasswd-authenticatie, opslag op S3
+  (`REGISTRY_STORAGE_S3_BUCKET/ROOTDIRECTORY/REGION/REGIONENDPOINT/ACCESSKEY/SECRETKEY/V4AUTH`,
+  `k8s/32-registry.yaml:46-93`); de standaard registry-API (`/v2/_catalog`,
+  `/v2/<naam>/tags/list`) is de leesbron voor de imagecatalogus.
+- **`fesafoto-build`** (`k8s/33-build.yaml`, elke 5 min): bouwt de images uit `images.tsv`; de
+  bouwscripts staan in de ConfigMaps `fesafoto-build-script` en `fesafoto-pipeline-scripts`
+  (plus `build-script-{site,control-plane,pool,agent,cluster-agent}` en
+  `pidurable-build-script`); de uitrolscripts zijn `k8s/52-deploy.yaml` (`pipeline/deploy.sh`).
+- **`fesafoto-scan`** (`k8s/51-scan.yaml`, elke 15 min): Trivy met `TRIVY_SEVERITY=HIGH,CRITICAL`
+  en `TRIVY_MAX_FINDINGS=0`; de uitkomst landt als de registry-tag `scanned-<sha>`; de
+  uitrolpoort eist `built-<sha>` én `scanned-<sha>`. **Deze taak mailt niet**: de signalen zijn
+  de taakgeschiedenis, de registry-tag en de uitrolpoort. Daarom toont het paneel bij "scan"
+  de taakgeschiedenis en de tags, geen JSON-uitkomst die niet bestaat.
+- **`fesafoto-deploy`** (`k8s/52-deploy.yaml`, elke 10 min) en de uitrolpoort
+  (`pipeline/deploy.sh`): zet per commit de git-SHA-tag met `kubectl set image`, met
+  gezondheidspoort en terugrol.
+- **De terugschrijf-taak bestaat niet meer.** Tot 2026-10-21 liep er een vierde taak
+  (`pipeline/commitback.sh`, CronJob `fesafoto-commitback`) die de draaiende tag in
+  `k8s/*.yaml` schreef, omdat de manifests een vaste versietag droegen. Sinds de manifests de
+  mutabele `stable`-tag lezen is die taak overbodig en vervangen door de waak in `k8s/check.py`
+  (sectie 9.1); `k8s/README.md` beschrijft het opruimen van de CronJob. Noem hem niet in het
+  ontwerp en verwacht er geen signaal van.
+
+### 3.7 De beveiligings- en netwerklaag
+- **`fesafoto-egress-gateway`** (`k8s/48-egress-gateway.yaml`, DaemonSet) en
+  **`fesafoto-node-cleanup`** (`k8s/45-node-cleanup.yaml`, DaemonSet).
+- **`fesafoto-wildcard-cert`** (`k8s/45-wildcard-cert.yaml`): houdt de wildcard-certificaten
+  actueel; gekoppeld aan `k8s/46-wildcard-ingress.yaml`.
+- **Netwerkbeleid:** `k8s/50-networkpolicies.yaml` (de uitgaande weg naar de API loopt via
+  Cilium-entiteiten `kube-apiserver`, nooit via een los IP-blok).
+
+### 3.8 De statistiek, de identiteit en de monitoring
+- **Plausible + ClickHouse + Postgres** (`k8s/21-analytics.yaml`, namespace
+  `fesafoto-analytics`): de Deployments `plausible`, `plausible-db` (Postgres) en
+  `plausible-events-db` (ClickHouse), elk met een eigen PVC op `hcloud-volumes`;
+  `plausible-verify` en `plausible-watch` (`k8s/27-plausible-verify.yaml`,
+  elke 10 en 15 min) sturen een kunstmatige proef en draaien de alarmcatalogus; de eigenlijke
+  mailalarmen lopen via `fesafoto-analytics-alerts` (`k8s/26-analytics-alerts.yaml`, elke 15 min)
+  met ontdubbeling in `alert_sends`.
+- **De producteventcatalogus** staat in `control-plane/analytics-events.js`
+  (`PROP_ALLOWLIST:49`, `EVENT_PROPS:70-230`, `DOMAIN_STATUS_EVENTS:245`, `countBucket():271`,
+  PII-weigering `:288`) en de doelen in `k8s/analytics-goals.json`. Transport
+  `control-plane/analytics.js:212` (`sendEvent`) naar `${ANALYTICS_URL ||
+  https://analytics.fesafotos.nl}/api/event`, fail-closed bij een onbekende naam (`:157-178`),
+  eigen tellers `stats():133`.
+- **Dex/OIDC** (`k8s/22-dex.yaml`, `k8s/radar.yaml`, `k8s/radar-values.yaml`, namespace `radar`):
+  de ingress `dex-idp` op `id.fesafotos.nl`, certificaat `id-fesafotos-nl`; de statistiek heeft
+  een eigen koppeling (`k8s/38-analytics-sso.yaml`, `k8s/38-analytics-sso-configmap.yaml` met
+  `analytics-oauth2-proxy` en `analytics-sso-bridge`).
+- **Monitoring** (namespace `monitoring`): Helm-release `kps` =
+  `prometheus-community/kube-prometheus-stack`, geïnstalleerd buiten de repo; de bron van
+  waarheid is `k8s/kps-values.yaml` (node-pins, de 10Gi/20Gi-opslag, resourceplafonds en het
+  Alertmanager-kanaal; de vier control-plane-monitors staan uit). Eindpunten: Prometheus
+  `kps-kube-prometheus-stack-prometheus:9090`, Alertmanager
+  `kps-kube-prometheus-stack-alertmanager:9093`, Grafana `kps-grafana:80`; node-exporter draait
+  in de hostnetwerk-ruimte op poort 9101. **Alertmanager heeft sinds 2026-10-21 een echt
+  kanaal:** mail via de in-cluster MTA naar dezelfde ontvanger als `OPS_MAIL_TO`, met Watchdog
+  als dagelijkse levensproef en InfoInhibitor naar de stille ontvanger (`k8s/kps-values.yaml`,
+  waak in `k8s/check.py` sectie 19b). **Er zijn nog geen eigen Grafana-dashboards in de repo**
+  (Grafana heeft alleen de standaarddashboards die de helm-release `kps` meelevert, ConfigMap
+  `kps-grafana-config-dashboards`): de prompt belooft daar dus geen eigen dashboard dat niet
+  bestaat, maar wel een werkend alarmkanaal. Het paneel leest de metriek en toont zijn eigen
+  oordeel.
+- **De sporenlaag (OTel), nu wél volledig in de repo en in het cluster:** de seam staat in de
+  code (`control-plane/otel.js`, met byte-identieke kopieën in `api/otel.js`,
+  `agent/lib/otel.cjs`, `agent-watch/lib/otel.cjs`, `security-agent/lib/otel.cjs`,
+  `cluster-agent/lib/otel.cjs` en `pidurable/lib/otel.cjs`) en zendt OTLP/HTTP-JSON naar
+  `${OTEL_EXPORTER_OTLP_ENDPOINT}/v1/traces`, fail-open. De collector staat in de repo als
+  **`k8s/60-otel-collector.yaml`** (geland in #511, opgeruimd in #513) en draait in `monitoring`
+  als `otel-collector` (image `otel/opentelemetry-collector-contrib` op een expliciete digest),
+  met de Service `otel-collector.monitoring.svc.cluster.local` op poort **4318**. De naam en
+  poort zijn exact het adres dat de workloads al noemden, zodat een pod die nog met de oude env
+  ronddraait meteen levert. **Wat de collector doet:** omdat de stack kube-prometheus-stack is
+  (Prometheus + Grafana, géén trace-backend) zet hij de binnengekomen spans met de
+  `span_metrics`-connector om in **RED-metrieken** (aantal aanroepen, fouten en een
+  duurhistogram per service/span) en levert die aan Prometheus via een ServiceMonitor; de spans
+  zelf laat hij bewust vallen. Dat is precies de "per dienst en per route" latentie- en
+  foutkaart uit E.2, en het maakt de kaart **gemeten**, niet geschat. Welke workloads hun
+  endpoint zetten (main, `git show main:k8s/<bestand>.yaml`): `11-api`, `12-control-plane`,
+  `13-auth`, `14-pool`, `17-retention`, `18-mta-purge`, `24-transcode`, `25-agent`,
+  `25-image-convert`, `25-pidurable-agent`, `26-agent-watcher`, `26-secagent`,
+  `41-cluster-agent`, `47-agent-watch`; dat zijn dus de agent-lanen, de kern- en auth-laag en de
+  pool-workers. De prompt belooft daarom overal een latentie- en foutmeting, en alleen voor een
+  dienst die géén endpoint zet een eerlijk "niet gemeten".
+
+### 3.9 De opslag en de back-ups
+- **`fesafoto-backup-daily` en `fesafoto-backup-state`** (`k8s/16-backup.yaml`,
+  namespace `fesafoto-system`): de dagelijkse restic-back-up (`backup-daily`, `10 4 * * *`) en
+  de uurstaat (`backup-state`, `5 * * * *`); daarnaast draagt hetzelfde bestand de
+  ServiceAccount `fesafoto-backup` met de leesrollen `fesafoto-backup-reader` (ClusterRole +
+  per-namespace Roles), die géén eigen gegevens opleveren. Doel is Hetzner Object Storage; de
+  restic-sleutel staat in secret `fesafoto-backup-restic` in `fesafoto-system`.
+- **De drie lagen** (etcd-snapshot, restic, manifest-export) staan in de back-up-manifesten en
+  in `docs/infra/` (o.a. de back-up- en hersteldocumentatie).
+
+### 3.10 De tenant-laag
+- **Per-tenant ingresses en certificaten:** elke tenant met een eigen adres krijgt een eigen
+  Ingress `tenant-<naam>` plus een eigen Certificate; `kubectl get ingress -A` toont er enkele
+  (de namen zijn klantgegevens en staan hier niet). Het wildcard-ingress `fesafoto-wildcard`
+  dekt `*.fesafotos.nl`.
+- **`mientjes-case0`** (`k8s/35-case0.yaml`, namespace `fesafoto-party`).
+- **`fesafoto-invites`** (`k8s/36-invite-host.yaml`, `fesainvites.nl`).
+- **`blissframe`** (`k8s/54-blissframe.yaml` + `k8s/03-namespace-blissframe.yaml`): een losse
+  placeholdersite (nginx uit een ConfigMap) voor `blissframe.nl`/`blissframe.eu`, bewust buiten
+  het feesten-domein.
+
+### 3.10a De basislaag en de resterende taken
+- **`traefik`** (namespace `traefik`, DaemonSet, één per ingress-node): de release staat buiten
+  de repo, de waarden in `k8s/traefik-values.yaml` (hostNetwork op 80/443, nodeSelector
+  `fesafoto/ingress=true`); de Ingress-objecten en de Middleware-vertaling staan in
+  `k8s/19-traefik.yaml`. Het access-log op stdout is de bron voor per-host verkeer; de
+  Prometheus-metrics van Traefik staan uit (`metrics.prometheus: null`), dus er is geen scraper
+  voor die entrypoint.
+- **`cert-manager`** (namespace `cert-manager`, drie Deployments): `k8s/20-certmanager.yaml`;
+  één ClusterIssuer `letsencrypt-fesafoto`; per host een eigen Certificate (zie
+  `kubectl get certificates -A`: 21 stuks).
+- **Cilium/Hubble** (namespace `kube-system`): `cilium` + `cilium-envoy` (DaemonSet),
+  `cilium-operator`, `hubble-relay`, `hubble-ui`; netwerkbeleid in `k8s/50-networkpolicies.yaml`.
+- **`coredns`, `metrics-server`, `hcloud-cloud-controller-manager`,
+  `hcloud-csi-controller`, `hcloud-csi-node`** (namespace `kube-system`): de k3s-addons en de
+  Hetzner-koppeling; `kubectl get deploy,ds -n kube-system`.
+- **`system-upgrade-controller`** (namespace `system-upgrade`): de k3s-upgrade-planner.
+- **`cluster-autoscaler`** (namespace `kube-system`, 0 replica's): bewust uit.
+- **De resterende CronJobs** (live, `kubectl get cronjob -A`): `fesafoto-provision-applier`
+  (`* * * * *`), `fesafoto-control-plane-reconciler` (`*/5 * * * *`),
+  `fesafoto-control-plane-kyc-remind` (`23 4 * * *`), `fesafoto-retention` en
+  `fesafoto-pool-retention` (`17 3 * * *`), `fesafoto-pool-report-sla` (`*/5 * * * *`),
+  `fesafoto-mta-purge` (`0 4 * * *`), `fesafoto-agent-watch-mailer` en
+  `fesafoto-secagent-mailer` (`* * * * *`). Elke taak heeft een eigen geschiedenis en dus een
+  eigen signaal; alleen `fesafoto-pool-report-sla` en de reconciler hebben een
+  machineleesbare uitkomst in de besturingskern, de rest leest het paneel uit de taakgeschiedenis.
+
+### 3.11 De externe diensten (per dienst in het cluster aangetoond)
+| Dienst | Bewijs in het cluster/de repo |
+|---|---|
+| Hetzner Cloud API | `hcloud-cloud-controller-manager` (Deployment in `kube-system`, `--cloud-provider=hcloud`, `HCLOUD_TOKEN`), `hcloud-csi-controller`/`hcloud-csi-node` (DaemonSet), opslagklasse `hcloud-volumes`. |
+| Hetzner Object Storage (S3) | `fesafoto-registry` met `REGISTRY_STORAGE_S3_*` (`k8s/32-registry.yaml:53-85`); de pool met `S3_*` (`k8s/14-pool.yaml`); de transcode-worker met `S3_*`; de back-up met restic naar S3; de canary die `fsn1.your-objectstorage.com` test. |
+| hosting.nl DNS/registrar | `control-plane/dnsapi.js` (`BASE_DEFAULT = "https://api.hosting.nl"`, `:41`; `token()`, `baseUrl()`, `reconcileRecords()` `:143-170`); de CP-routes `/api/mail/domain-status` (`control-plane/server.js:635`) en `/api/domains/*`. |
+| OpenRouter | `control-plane/credit-watch.js` (`OPENROUTER_API_URL`, default `https://openrouter.ai/api/v1`, `:41`); de CronJob `fesafoto-openrouter-credit`; de lanen met `OPENROUTER_API_KEY` (o.a. `k8s/41-cluster-agent.yaml`, `k8s/25-agent.yaml`, `k8s/26-secagent.yaml`). |
+| Dex/OIDC | namespace `radar`, ingress `dex-idp` op `id.fesafotos.nl`, certificaat `id-fesafotos-nl`; `k8s/22-dex.yaml` + `k8s/radar-values.yaml`; de statistiek-koppeling `k8s/38-analytics-sso.yaml`. |
+| Eigen mailserver (beheer-API + JMAP/IMAP) | `stalwart` (Deployment, `k8s/15-mta.yaml`), `mta-admin-proxy` (Deployment), ingressen `mail-fesafotos-nl-acme` (`mail.fesafotos.nl`) en `fesafoto-mailmanage` (`mailbeheer.fesafotos.nl`), certificaten `mail-fesafotos-nl` en `mailbeheer-fesafotos-nl`; de photobooth-ingest leest via JMAP (`k8s/58-photobooth-ingest.yaml`). |
+| Zelf-gehoste statistiek (Plausible + ClickHouse) | namespace `fesafoto-analytics`: deployments `plausible`, `plausible-db` (Postgres) en `plausible-events-db` (ClickHouse), PVC's op `hcloud-volumes`; ingress `plausible` op `analytics.fesafotos.nl`, certificaat `analytics-fesafotos-nl`; de CP-seam `control-plane/analytics.js`. |
+| Mollie | `control-plane/mollie.js` (webhook-handtekening via de publieke sleutel), CP-route `POST /api/mollie/webhook` (`control-plane/server.js:2165`), portaalroutes `/api/checkout` (`:2236`) en `/api/orders/:id/refund` (`:2108`); `MOLLIE_API_KEY` in de CP-secret. |
+| Registry-API | `fesafoto-registry` (`k8s/32-registry.yaml`), poort 5000, `/v2/_catalog` en `/v2/<naam>/tags/list`; de uitrolpoort leest de tags. |
+| Eigen besturingskern + portaal-API | CP: `control-plane/server.js:393-2900` (ruim 100 routes); portaal: `auth/admin.js:2496-4425`; rollen `auth/admin.js:790-794`. |
+| Monitoring (Prometheus/Grafana) | namespace `monitoring`, release `kps`, `k8s/kps-values.yaml`; eindpunten Prometheus 9090, Alertmanager 9093, Grafana 80, node-exporter 9101. |
+
+### 3.12 Wat het paneel níet kan beloven (en dus als eerlijke lege staat ontwerpt)
+Dit staat bewust in de prompt als grens, omdat de bron ontbreekt of geen machineleesbare
+uitkomst heeft:
+- **`pidurable` en `agent` hebben geen tijdstempel in hun gezondheidsantwoord** → hun
+  levensproef is alleen "bereikbaar"; een vastgelopen-maar-levende laan is onzichtbaar. Toon
+  dus geen "laatste ronde" voor deze twee.
+- **De scan-taak (`fesafoto-scan`) mailt niet en levert geen JSON** → alleen taakgeschiedenis
+  en registry-tags.
+- **De statistiek-proef en -waak (`plausible-verify`/`plausible-watch`) mailen niet** → alleen
+  taakgeschiedenis en podlog.
+- **De uitgaande proef (`egress-canary`) heeft geen eigen machineleesbare uitkomst** → het
+  signaal loopt via de herstart van de pod en de bevindingen van de cluster-agent.
+- **Bevindingen leven in de documentopslag (`agent.sqlite`) en niet in een JSON-bestand** →
+  een scherm leest het HTTP-eindpunt, geen bestand.
+- **De ops-besluiten leven in de database van de besturingskern** (`ops_decisions`) en niet op
+  het volume van de agent → het voorstel is wel een bestand, het besluit niet.
+- **Er is geen platformbreed KPI- of overzichtseindpunt in de besturingskern** en geen
+  leesroute voor de fiscale tabel, de inlogbudgetten of de partnergegevens → die kaarten
+  krijgen een eerlijke lege staat of een "te bouwen"-notitie.
+- **Alertmanager heeft sinds 2026-10-21 een echt mailkanaal** (naar dezelfde ontvanger als
+  `OPS_MAIL_TO`, met Watchdog als levensproef), **maar er zijn nog geen eigen
+  Grafana-dashboards in de repo** (alleen de standaarddashboards van de `kps`-release) → het
+  paneel toont zijn eigen oordeel boven op de metriek en belooft geen eigen dashboard dat niet
+  bestaat.
+- **De sporenmetriek bestaat voor elke workload die een OTLP-endpoint zet** (de pool, de
+  agent-lanen, de besturingskern, de auth-laag en de pool-workers). Voor een dienst die géén
+  endpoint zet toont het paneel eerlijk "niet gemeten", geen lege grafiek die nul suggereert.
+- **Er is geen trace-backend**: de collector zet spans om in RED-metrieken en laat de spans
+  vallen. Het paneel kan dus wél latentie, foutaantal en doorvoer per dienst/route tonen, maar
+  **geen losse spoorboom** ("welke aanroep was traag"); dat zou een Tempo/Jaeger-achtige
+  backend vragen die er niet is. Beloof in het ontwerp dus geen "trace detail"-scherm.
+- **Er is geen tabel `wishes`** (gecontroleerd met een zoekopdracht over `pool/`); wensen
+  bestaan alleen als vrije tekst in gastenboekberichten.
+
+### 3.13 Herkomst van de onderbouwing
+De onderbouwing hierboven is nagerekend tegen bronnen die elke lezer heeft:
+- de manifesten in `k8s/` (workloads, namespaces, poorten, schema's en de poorten van
+  `check.py`), met `k8s/agent-autonomy.json` als canonieke lanenlijst en `k8s/README.md` als
+  uitrolmodel;
+- de code van de diensten (`pool/`, `control-plane/`, `auth/`, `cluster-agent/`,
+  `security-agent/`, `agent-watch/`, `agent/`, `pidurable/`) en de runbooks in `docs/infra/`;
+- de bestaande SPA in `manage-app/` (routes, poorten en de bestaande testpoorten) en
+  `docs/infra/BEHEER-APP.md`.
+
+### 3.14 Aanbeveling
+De prompt is kant-en-klaar en verwijst naar echte werkbelastingen, routes en velden. Wil het
+resultaat echt landen, dan is de aanbevolen volgorde:
+
+1. **Nu:** de prompt uit §2 ongewijzigd in AI Studio plakken, met de instellingen uit §1. Vraag
+   om de schermen uit Deel E één voor één; het model levert dan een ontwerp dat wij per scherm
+   kunnen beoordelen.
+2. **Daarna:** per scherm een eigen port-taak in `manage-app/`, in de volgorde van de bestaande
+   poorten: eerst de schil en de gedeelde bouwstenen (zie `docs/infra/BEHEER-APP.md` en de
+   bestaande bouwstenen in `manage-app/src/components/manage/`), dan de schermen zelf. Elke
+   kaart die een bron mist, krijgt een "te bouwen"-notitie in plaats van een verzonnen cijfer.
+3. **Onderweg:** de gaten uit §3.12 als eigen taken opvoeren (per-node metriek, jobs-duur, een
+   latentie-uitkomst per dienst, een samenvatting per tenant). Dat zijn de enige blokkades tussen
+   dit ontwerp en een paneel dat alles echt toont.
+4. **Bij de uitrol:** de bestaande poorten van `manage-app/` (route-contract, dep-pin, token- en
+   contrastpoorten) blijven leidend; het ontwerp is een vorm, geen nieuwe architectuur.
+
+Dit document is zelfstandig: de prompt staat in §2, de gebruiksaanwijzing in §1, en de
+onderbouwing met `file:line`-bewijs staat in §3. Er is geen projectcode gewijzigd; alle
+clusteruitlezingen waren read-only.
