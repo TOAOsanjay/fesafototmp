@@ -1,27 +1,153 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-serif: 'Fraunces', Georgia, serif;
-    --font-mono: 'JetBrains Mono', monospace;
-  }
+:root {
+  --paper: #faf7f2;
+  --paper-2: #fdf8ef;
+  --surface: #ffffff;
+  --ink: #1c1917;
+  --ink-soft: #57534e;
+  --border: #e7e2d8;
+  --accent: #c2410c;
+  --accent-soft: #fbd38d;
+  --success: #15803d;
+  --danger: #b91c1c;
 
-  html {
-    font-family: var(--font-sans);
-    scroll-behavior: smooth;
-    color-scheme: light;
-  }
+  --font-display: 'Bricolage Grotesque', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Instrument Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
 }
 
-.font-editorial {
-  font-family: var(--font-serif);
+/* Theme classes to dynamically swap CSS variables */
+.theme-terracotta {
+  --accent: #c2410c;
+  --accent-soft: #fbd38d;
 }
 
-.font-sans-clean {
-  font-family: var(--font-sans);
+.theme-olive {
+  --accent: #3f6212;
+  --accent-soft: #d9f99d;
+}
+
+.theme-midnight {
+  --accent: #1e3a8a;
+  --accent-soft: #bfdbfe;
+}
+
+.theme-berry {
+  --accent: #9f1239;
+  --accent-soft: #fecdd3;
+}
+
+.theme-amber {
+  --accent: #d97706;
+  --accent-soft: #fde68a;
+}
+
+html {
+  font-family: var(--font-body);
+  background-color: var(--paper);
+  color: var(--ink);
+  scroll-behavior: smooth;
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-body {
+  font-family: var(--font-body);
 }
 
 .font-mono-code {
   font-family: var(--font-mono);
+}
+
+/* Subtle organic paper texture effect */
+.paper-pattern {
+  background-color: var(--paper);
+  background-image: radial-gradient(rgba(28, 25, 23, 0.035) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+/* Subtle animated confetti burst and stroke animations */
+@keyframes checkDraw {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-check-draw {
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  animation: checkDraw 0.55s cubic-bezier(0.65, 0, 0.45, 1) 0.15s forwards;
+}
+
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(194, 65, 12, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 16px rgba(194, 65, 12, 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(194, 65, 12, 0);
+  }
+}
+
+.animate-highlight-pulse {
+  animation: highlightPulse 1.8s ease-out 2;
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(2deg);
+  }
+}
+
+.animate-float-gentle {
+  animation: floatGentle 4s ease-in-out infinite;
+}
+
+/* Modal Bottom sheet on mobile / centered dialog on desktop */
+.app-sheet-backdrop {
+  background-color: rgba(28, 25, 23, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+/* Safe area utilities for mobile devices with home indicator & notch */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 4.5rem);
+}
+
+@media (min-width: 768px) {
+  .pb-safe {
+    padding-bottom: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
