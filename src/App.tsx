@@ -39,8 +39,13 @@ import { TypedConfirmModal } from './components/manage/TypedConfirmModal';
 import { ManageInventory } from './components/manage/ManageInventory';
 import { Search, X, Check, ExternalLink } from 'lucide-react';
 import { PipelineRun, OperatorRole } from './types/manage';
+import { LandingPageView } from './components/landing/LandingPageView';
+import { PartyPageView } from './components/party/PartyPageView';
+
+export type ActiveSurface = 'landing' | 'party' | 'manage';
 
 export default function App() {
+  const [activeSurface, setActiveSurface] = useState<ActiveSurface>('landing');
   const [lang, setLang] = useState<'nl' | 'en'>('nl');
   const [currentPage, setCurrentPage] = useState<NavPage>('dashboard');
   const [activeRole, setActiveRole] = useState<OperatorRole>('admin');
@@ -328,41 +333,117 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)] font-body paper-pattern flex">
-      {/* Grouped Sidebar (Fixed on Desktop, Off-canvas Drawer on Mobile) */}
-      <Sidebar
-        currentPage={currentPage}
-        onSelectPage={setCurrentPage}
-        lang={lang}
-        isOpenMobile={isMobileMenuOpen}
-        onCloseMobile={() => setIsMobileMenuOpen(false)}
-        activeRole={activeRole}
-        onRoleChange={setActiveRole}
-      />
+    <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)] font-body flex flex-col">
+      {/* Top Multi-Surface Switcher Pill Bar */}
+      <nav aria-label="Platform surfaces" className="bg-[#1c1917] text-[#f5f2eb] px-3 sm:px-4 py-2 border-b border-neutral-800 flex items-center justify-between text-xs font-mono-code z-50 sticky top-0 shadow-md">
+        <div className="flex items-center gap-2">
+          <span className="font-bold tracking-tight text-white flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />
+            <span>fesafotos.</span>
+          </span>
+          <span className="text-white/30 hidden sm:inline">|</span>
+          <span className="text-white/60 hidden sm:inline">Kies weergave:</span>
+        </div>
 
-      {/* Main Back-Office Work Area */}
-      <div className="flex-1 min-w-0 flex flex-col min-h-screen">
-        {/* Sticky Top Header */}
-        <TopHeader
-          currentPage={currentPage}
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSurface('landing')}
+            className={`px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 ${
+              activeSurface === 'landing'
+                ? 'bg-[var(--accent)] text-white font-bold shadow-xs'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <span>fesafotos.nl</span>
+            <span className="text-[10px] opacity-75 hidden md:inline">(Landingspagina)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSurface('party')}
+            className={`px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 ${
+              activeSurface === 'party'
+                ? 'bg-[var(--accent)] text-white font-bold shadow-xs'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <span>sanjay.fesafotos.nl</span>
+            <span className="text-[10px] opacity-75 hidden md:inline">(Feest)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSurface('manage')}
+            className={`px-2.5 py-1 rounded-lg transition-colors flex items-center gap-1.5 ${
+              activeSurface === 'manage'
+                ? 'bg-[var(--accent)] text-white font-bold shadow-xs'
+                : 'text-white/70 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <span>manage.fesafotos.nl</span>
+            <span className="text-[10px] opacity-75 hidden md:inline">(Beheer)</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* Surface 1: Public Landing Page on fesafotos.nl */}
+      {activeSurface === 'landing' && (
+        <LandingPageView
           lang={lang}
           onLanguageChange={setLang}
-          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
-          onQuickSearch={() => setIsSearchOpen(true)}
-          activeRole={activeRole}
-          onRoleChange={setActiveRole}
+          onNavigateToParty={() => setActiveSurface('party')}
+          onNavigateToManage={() => setActiveSurface('manage')}
         />
+      )}
 
-        {/* Dynamic Page Container */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-safe">
-          {renderView()}
+      {/* Surface 2: Live Party Page on sanjay.fesafotos.nl */}
+      {activeSurface === 'party' && (
+        <PartyPageView
+          onBackToLanding={() => setActiveSurface('landing')}
+          onOpenManage={() => setActiveSurface('manage')}
+        />
+      )}
 
-          {/* Component Inventory Documentation for Developers */}
-          <ManageInventory lang={lang} />
-        </main>
-      </div>
+      {/* Surface 3: Back-Office Management on manage.fesafotos.nl */}
+      {activeSurface === 'manage' && (
+        <div className="flex-1 min-h-0 flex bg-[var(--paper)] paper-pattern">
+          {/* Grouped Sidebar */}
+          <Sidebar
+            currentPage={currentPage}
+            onSelectPage={setCurrentPage}
+            lang={lang}
+            isOpenMobile={isMobileMenuOpen}
+            onCloseMobile={() => setIsMobileMenuOpen(false)}
+            activeRole={activeRole}
+            onRoleChange={setActiveRole}
+          />
 
-      {/* Reusable Typed Confirmation Dialog */}
+          {/* Main Back-Office Work Area */}
+          <div className="flex-1 min-w-0 flex flex-col min-h-screen">
+            {/* Sticky Top Header */}
+            <TopHeader
+              currentPage={currentPage}
+              lang={lang}
+              onLanguageChange={setLang}
+              onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+              onQuickSearch={() => setIsSearchOpen(true)}
+              activeRole={activeRole}
+              onRoleChange={setActiveRole}
+            />
+
+            {/* Dynamic Page Container */}
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto pb-safe">
+              {renderView()}
+
+              {/* Component Inventory Documentation for Developers */}
+              <ManageInventory lang={lang} />
+            </main>
+          </div>
+        </div>
+      )}
+
+      {/* Reusable Typed Confirmation Dialog (for back-office) */}
       {typedConfirm && (
         <TypedConfirmModal
           isOpen={typedConfirm.isOpen}
